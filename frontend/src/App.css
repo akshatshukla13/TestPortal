@@ -704,3 +704,571 @@ button:disabled {
     gap: 0.5rem;
   }
 }
+
+/* ── Theme toggle ─────────────────────────────────────────────────────────── */
+.theme-toggle {
+  font-size: 1.1rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+}
+
+/* ── Tag pills (small labels) ─────────────────────────────────────────────── */
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  padding: 0.1rem 0.44rem;
+  font-size: 0.72rem;
+  background: var(--card-soft);
+  margin-right: 0.3rem;
+}
+
+.type-pill {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+[data-theme='dark'] .type-pill {
+  background: #1e3a5f;
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+
+/* ── Dashboard outer wrapper ──────────────────────────────────────────────── */
+.dashboard-outer {
+  display: grid;
+  gap: 1rem;
+}
+
+.dashboard-snapshot {
+  padding: 1rem;
+}
+
+.subject-bands {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin-top: 0.7rem;
+}
+
+.subject-band {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.subject-band.strong { color: #14833b; }
+.subject-band.weak   { color: #bf3131; }
+
+.attempt-status-badge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  margin-top: 0.3rem;
+}
+
+.attempt-status-badge.submitted {
+  background: #dcfce7;
+  color: #14532d;
+}
+
+.attempt-status-badge.in_progress {
+  background: #fef9c3;
+  color: #713f12;
+}
+
+.attempt-history-item {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.6rem 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.attempt-score-badge {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+/* ── Section tabs (exam) ──────────────────────────────────────────────────── */
+.section-tabs {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding: 0.2rem 0;
+}
+
+.section-tab {
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.38rem 0.8rem;
+  font-weight: 600;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.section-tab.active {
+  background: #2740c8;
+  color: #fff;
+  border-color: #2740c8;
+}
+
+/* ── Question view improvements ───────────────────────────────────────────── */
+.q-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.q-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.q-marks {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.q-body {
+  margin-bottom: 1rem;
+}
+
+.q-text {
+  font-size: 1.05rem;
+  line-height: 1.65;
+  margin: 0 0 0.6rem;
+  white-space: pre-wrap;
+}
+
+.q-img {
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-top: 0.5rem;
+}
+
+.option-img {
+  max-width: 140px;
+  display: block;
+  margin-top: 0.3rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+.msq-hint {
+  margin: 0;
+}
+
+/* ── NAT input ────────────────────────────────────────────────────────────── */
+.nat-input-wrap {
+  margin: 0.5rem 0;
+}
+
+.nat-label {
+  font-weight: 600;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.nat-input {
+  max-width: 240px;
+  font-size: 1.05rem;
+  padding: 0.5rem 0.7rem;
+}
+
+/* ── Exam action row ──────────────────────────────────────────────────────── */
+.exam-action-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--line);
+}
+
+.marked-active {
+  background: #f3e8ff !important;
+  border-color: #a855f7 !important;
+  color: #7e22ce !important;
+}
+
+.submit-btn {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.submit-btn:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+/* ── 5-state palette ──────────────────────────────────────────────────────── */
+.palette-btn.not-visited {
+  background: #fff;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.palette-btn.visited {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #7f1d1d;
+}
+
+.palette-btn.answered {
+  background: #bbf7d0;
+  border-color: #4ade80;
+  color: #14532d;
+}
+
+.palette-btn.marked {
+  background: #ede9fe;
+  border-color: #a78bfa;
+  color: #4c1d95;
+}
+
+.palette-btn.answered-marked {
+  background: linear-gradient(135deg, #bbf7d0 50%, #ede9fe 50%);
+  border-color: #a78bfa;
+  color: #14532d;
+}
+
+.palette-btn.current {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+/* Override old unanswered/current classes kept for backward compat */
+.palette-btn.unanswered {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+/* ── Palette legend ───────────────────────────────────────────────────────── */
+.dot.not-visited  { background: #d1d5db; }
+.dot.visited      { background: #f87171; }
+.dot.answered     { background: #4ade80; }
+.dot.marked       { background: #a78bfa; }
+.dot.answered-marked { background: linear-gradient(135deg, #4ade80 50%, #a78bfa 50%); }
+
+.palette-section-group {
+  margin-bottom: 0.7rem;
+}
+
+.palette-section-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 0 0 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.palette-counts {
+  margin-top: 0.6rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* ── Offline / warning banners ────────────────────────────────────────────── */
+.offline-banner {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #78350f;
+  border-radius: 10px;
+  padding: 0.6rem 0.9rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.warn-banner {
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #7c2d12;
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+}
+
+/* ── Modal ────────────────────────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal-box {
+  background: var(--card, #fff);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 1.4rem;
+  width: min(440px, 92vw);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
+}
+
+.modal-box h3 {
+  margin-top: 0;
+}
+
+.submit-counts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+
+.submit-count-item {
+  border-radius: 10px;
+  padding: 0.6rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.submit-count-item strong {
+  font-size: 1.4rem;
+}
+
+.submit-count-item span {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.submit-count-item.answered    { background: #dcfce7; color: #14532d; }
+.submit-count-item.not-answered{ background: #fee2e2; color: #7f1d1d; }
+.submit-count-item.marked      { background: #ede9fe; color: #4c1d95; }
+.submit-count-item.not-visited { background: var(--card-soft); color: var(--muted); }
+
+/* ── Calculator ───────────────────────────────────────────────────────────── */
+.calc-panel {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 220px;
+  background: var(--card, #fff);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  z-index: 8888;
+  overflow: hidden;
+}
+
+.calc-header {
+  background: #1e293b;
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.45rem 0.7rem;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.calc-close {
+  background: transparent;
+  border: none;
+  color: #fff;
+  padding: 0;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.calc-expr {
+  background: #0f172a;
+  color: #64748b;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.7rem 0;
+  text-align: right;
+  min-height: 1.3rem;
+  font-family: monospace;
+}
+
+.calc-display {
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: right;
+  padding: 0.15rem 0.7rem 0.4rem;
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.calc-keys {
+  padding: 0.4rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.calc-row {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.calc-key {
+  flex: 1;
+  background: var(--card-soft, #eef2f6);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.calc-key:hover {
+  background: var(--line);
+}
+
+.calc-key-eq {
+  background: #008870;
+  color: #fff;
+  border-color: #008870;
+}
+
+.calc-key-eq:hover {
+  background: #006e5c;
+}
+
+.calc-key-clear {
+  background: #fee2e2;
+  color: #7f1d1d;
+  border-color: #fca5a5;
+}
+
+/* ── Scratchpad ───────────────────────────────────────────────────────────── */
+.scratchpad-panel {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  width: 300px;
+  background: var(--card, #fff);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  z-index: 8888;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.scratchpad-area {
+  width: 100%;
+  height: 200px;
+  resize: none;
+  border: none;
+  border-radius: 0;
+  padding: 0.7rem;
+  font-size: 0.9rem;
+  background: var(--card);
+  color: var(--ink);
+}
+
+
+/* ── Admin shell ──────────────────────────────────────────────────────────── */
+.admin-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ── Bank tab ─────────────────────────────────────────────────────────────── */
+.bank-tab {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.bank-form-toggle {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.bank-filters {
+  padding: 0.8rem 1rem;
+}
+
+.bank-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.9rem;
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.bank-action-bar label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.bank-q-item {
+  padding: 0.7rem 0.9rem;
+  transition: border-color 0.15s;
+}
+
+.bank-q-selected {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.bank-q-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.bank-q-text {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+

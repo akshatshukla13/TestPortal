@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
 import {
   addQuestion,
   copyQuestions,
@@ -9,12 +10,29 @@ import {
   updateSchedule,
   uploadImage,
 } from '../controllers/adminController.js';
+import {
+  listQuestionBank,
+  createBankQuestion,
+  updateBankQuestion,
+  deleteBankQuestion,
+  addBankQuestionsToTest,
+  getDistinctSubjects,
+} from '../controllers/questionBankController.js';
 import { protect, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-router.use(protect, requireRole('admin'));
+// Admin API rate limiter: 120 requests/minute per IP
+const adminLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many admin requests. Please slow down.' },
+});
+
+router.use(adminLimiter, protect, requireRole('admin'));
 
 router.get('/tests', getAllTests);
 router.post('/tests', createTest);
@@ -22,6 +40,14 @@ router.patch('/tests/:testId/approve', updateApproval);
 router.patch('/tests/:testId/schedule', updateSchedule);
 router.post('/tests/:testId/questions', addQuestion);
 router.post('/tests/:testId/questions/copy', copyQuestions);
+router.post('/tests/:testId/questions/from-bank', addBankQuestionsToTest);
 router.post('/upload-image', upload.single('image'), uploadImage);
+
+// Question Bank
+router.get('/question-bank', listQuestionBank);
+router.get('/question-bank/subjects', getDistinctSubjects);
+router.post('/question-bank', createBankQuestion);
+router.patch('/question-bank/:questionId', updateBankQuestion);
+router.delete('/question-bank/:questionId', deleteBankQuestion);
 
 export default router;

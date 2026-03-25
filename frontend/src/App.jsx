@@ -108,9 +108,12 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">GATE EXAM MOCK PORTAL</p>
-          <h1>{auth.user ? `${auth.user.name} Workspace` : 'Exam Forge'}</h1>
+        <div className="topbar-brand">
+          <span className="topbar-logo">🎓</span>
+          <div>
+            <p className="eyebrow">GATE EXAM MOCK PORTAL</p>
+            <h1>{auth.user ? `${auth.user.name}'s Workspace` : 'Exam Forge'}</h1>
+          </div>
         </div>
         <div className="topbar-actions">
           <button
@@ -124,6 +127,7 @@ function App() {
           {auth.user && (
             <>
               <span className="pill">{auth.user.role.toUpperCase()}</span>
+              <span className="topbar-username">{auth.user.email}</span>
               <button type="button" className="secondary" onClick={logout}>
                 Logout
               </button>

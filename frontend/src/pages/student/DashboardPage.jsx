@@ -10,6 +10,13 @@ const CATEGORY_LABEL = {
   pyq: 'PYQ',
 };
 
+const CATEGORY_COLOR = {
+  'full-mock': 'cat-pill-full',
+  'subject-wise': 'cat-pill-subject',
+  'topic-wise': 'cat-pill-topic',
+  pyq: 'cat-pill-pyq',
+};
+
 export default function DashboardPage({ token, setMessage }) {
   const [tests, setTests] = useState([]);
   const [attempts, setAttempts] = useState([]);
@@ -69,7 +76,7 @@ export default function DashboardPage({ token, setMessage }) {
       {/* Performance snapshot */}
       {summary && (
         <article className="card dashboard-snapshot">
-          <h3>Performance Snapshot</h3>
+          <h3>📊 Performance Snapshot</h3>
           <div className="stats-grid">
             <div className="stat-card compact">
               <p>Tests Taken</p>
@@ -114,16 +121,27 @@ export default function DashboardPage({ token, setMessage }) {
       <section className="dashboard-layout">
         {/* Available tests */}
         <article className="card panel-left">
-          <h2>Available Tests</h2>
+          <div className="panel-heading">
+            <h2>📋 Available Tests</h2>
+            <span className="panel-count">{tests.length} test{tests.length !== 1 ? 's' : ''}</span>
+          </div>
           <p className="muted">Start active tests in dedicated exam tabs.</p>
           <div className="stack">
-            {tests.length === 0 && <p className="muted">No currently active approved tests.</p>}
+            {tests.length === 0 && (
+              <div className="empty-state">
+                <p className="muted">No currently active approved tests.</p>
+              </div>
+            )}
             {tests.map((test) => (
               <div className="test-list-item" key={test._id}>
                 <div style={{ flex: 1 }}>
                   <strong>{test.title}</strong>
                   <div className="tags">
-                    {test.category && <span>{CATEGORY_LABEL[test.category] || test.category}</span>}
+                    {test.category && (
+                      <span className={`tag-cat ${CATEGORY_COLOR[test.category] || ''}`}>
+                        {CATEGORY_LABEL[test.category] || test.category}
+                      </span>
+                    )}
                     {test.difficultyLevel && <span>{test.difficultyLevel}</span>}
                   </div>
                   <p className="small">
@@ -138,14 +156,15 @@ export default function DashboardPage({ token, setMessage }) {
                 </div>
                 <button
                   type="button"
+                  className={test.attemptStatus === 'submitted' ? 'secondary' : ''}
                   disabled={test.attemptStatus === 'submitted'}
                   onClick={() => openTest(test._id)}
                 >
                   {test.attemptStatus === 'submitted'
                     ? 'Done'
                     : test.attemptStatus === 'in_progress'
-                      ? 'Resume'
-                      : 'Start'}
+                      ? '▶ Resume'
+                      : '▶ Start'}
                 </button>
               </div>
             ))}
@@ -153,8 +172,10 @@ export default function DashboardPage({ token, setMessage }) {
 
           {/* Recommendations */}
           {recommendations.length > 0 && (
-            <div style={{ marginTop: '1.2rem' }}>
-              <h3>🎯 Recommended Practice</h3>
+            <div style={{ marginTop: '1.4rem' }}>
+              <div className="panel-heading">
+                <h3>🎯 Recommended Practice</h3>
+              </div>
               <p className="muted small">Based on your weak areas</p>
               <div className="stack">
                 {recommendations.map((test) => (
@@ -163,7 +184,7 @@ export default function DashboardPage({ token, setMessage }) {
                       <strong>{test.title}</strong>
                       <p className="small">⏱ {test.durationMinutes} min · {test.totalMarks} marks</p>
                     </div>
-                    <button type="button" onClick={() => openTest(test._id)}>Start</button>
+                    <button type="button" onClick={() => openTest(test._id)}>▶ Start</button>
                   </div>
                 ))}
               </div>
@@ -173,7 +194,9 @@ export default function DashboardPage({ token, setMessage }) {
 
         {/* Report navigation */}
         <article className="card panel-right">
-          <h2>Reports & Analysis</h2>
+          <div className="panel-heading">
+            <h2>📈 Reports & Analysis</h2>
+          </div>
           <p className="muted">Open every analysis section in separate browser tabs.</p>
 
           <label>
@@ -193,19 +216,19 @@ export default function DashboardPage({ token, setMessage }) {
           </label>
 
           <div className="report-nav-grid">
-            <button type="button" onClick={() => openReport('score', 'current')}>
+            <button type="button" className="report-nav-btn" onClick={() => openReport('score', 'current')}>
               📊 Score Card
             </button>
-            <button type="button" onClick={() => openReport('subject', 'new')}>
+            <button type="button" className="report-nav-btn" onClick={() => openReport('subject', 'new')}>
               📚 Subject Report
             </button>
-            <button type="button" onClick={() => openReport('solution', 'new')}>
+            <button type="button" className="report-nav-btn" onClick={() => openReport('solution', 'new')}>
               ✅ Solutions
             </button>
-            <button type="button" onClick={() => openReport('question', 'new')}>
+            <button type="button" className="report-nav-btn" onClick={() => openReport('question', 'new')}>
               🔍 Question Analysis
             </button>
-            <button type="button" onClick={() => openReport('compare', 'new')}>
+            <button type="button" className="report-nav-btn" onClick={() => openReport('compare', 'new')}>
               📈 Compare Yourself
             </button>
           </div>
@@ -230,7 +253,7 @@ export default function DashboardPage({ token, setMessage }) {
           {/* Attempt history */}
           {attempts.length > 0 && (
             <div style={{ marginTop: '1rem' }}>
-              <h3>Attempt History</h3>
+              <h3>🕒 Attempt History</h3>
               <div className="stack">
                 {attempts.map((attempt) => (
                   <div className="attempt-history-item" key={attempt._id}>

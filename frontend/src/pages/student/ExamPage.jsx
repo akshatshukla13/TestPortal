@@ -208,6 +208,7 @@ export default function ExamPage({ token, testId, setMessage }) {
   const [leftTime, setLeftTime] = useState('00:00');
   const [lowTimeWarning, setLowTimeWarning] = useState(false);
   const [submitted, setSubmitted] = useState(null);
+  const [submittedDurationSeconds, setSubmittedDurationSeconds] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -716,6 +717,7 @@ export default function ExamPage({ token, testId, setMessage }) {
         questionTimes: currentTimes,
       });
 
+      setSubmittedDurationSeconds(durationSeconds);
       setSubmitted(response);
       clearLocalStorage();
       localStorage.setItem(SUBMIT_EVENT_KEY, String(Date.now()));
@@ -810,17 +812,65 @@ export default function ExamPage({ token, testId, setMessage }) {
   }
 
   if (submitted) {
+    const durationMin = Math.floor(submittedDurationSeconds / 60);
+    const durationSec = submittedDurationSeconds % 60;
+    const percentage = submitted.totalMarks > 0
+      ? ((submitted.score / submitted.totalMarks) * 100).toFixed(1)
+      : 0;
+
     return (
       <main className="exam-shell">
-        <section className="card exam-complete">
-          <h2>✅ Test Submitted</h2>
-          <p>
-            Score: <strong>{submitted.score}</strong> / {submitted.totalMarks}
-          </p>
-          <p className="muted">Open dashboard or report tabs to view complete analysis.</p>
-          <div className="button-row">
+        <section className="exam-complete-screen">
+          <div className="exam-complete-hero">
+            <div className="exam-complete-icon">✅</div>
+            <h2>Test Submitted Successfully!</h2>
+            <p className="muted">Your responses have been recorded. Here is your summary.</p>
+          </div>
+
+          <div className="exam-complete-stats">
+            <div className="exam-complete-stat">
+              <span className="exam-complete-stat-value">{submitted.score}</span>
+              <span className="exam-complete-stat-label">Score</span>
+            </div>
+            <div className="exam-complete-stat">
+              <span className="exam-complete-stat-value">{submitted.totalMarks}</span>
+              <span className="exam-complete-stat-label">Total Marks</span>
+            </div>
+            <div className="exam-complete-stat">
+              <span className="exam-complete-stat-value">{percentage}%</span>
+              <span className="exam-complete-stat-label">Percentage</span>
+            </div>
+            <div className="exam-complete-stat">
+              <span className="exam-complete-stat-value">{durationMin}m {durationSec}s</span>
+              <span className="exam-complete-stat-label">Time Taken</span>
+            </div>
+          </div>
+
+          <div className="exam-complete-counts">
+            <div className="submit-count-item answered">
+              <strong>{counts.answered}</strong>
+              <span>Answered</span>
+            </div>
+            <div className="submit-count-item not-answered">
+              <strong>{counts.notAnswered}</strong>
+              <span>Visited</span>
+            </div>
+            <div className="submit-count-item marked">
+              <strong>{counts.markedForReview}</strong>
+              <span>Marked</span>
+            </div>
+            <div className="submit-count-item not-visited">
+              <strong>{counts.notVisited}</strong>
+              <span>Not Visited</span>
+            </div>
+          </div>
+
+          <div className="button-row" style={{ justifyContent: 'center', marginTop: '1.6rem', gap: '0.8rem' }}>
             <button type="button" onClick={() => (window.location.hash = '#/dashboard')}>
-              Open Dashboard
+              📊 Open Dashboard
+            </button>
+            <button type="button" className="secondary" onClick={() => (window.location.hash = `#/report/score/${test?._id}`)}>
+              📈 View Report
             </button>
             <button type="button" className="secondary" onClick={() => window.close()}>
               Close Tab

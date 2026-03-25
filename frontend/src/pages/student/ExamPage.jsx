@@ -8,16 +8,66 @@ const AUTO_SAVE_INTERVAL_MS = 30_000;
 const LOW_TIME_WARN_SECS = 600; // 10 minutes
 
 // ── Calculator helpers ───────────────────────────────────────────────────────
+// Safe expression evaluator using recursive descent parsing (no eval/Function)
+
+function parseNum(tokens, pos) {
+  if (pos[0] >= tokens.length) return [0, pos[0]];
+  const tok = tokens[pos[0]];
+  if (tok === '(') {
+    pos[0]++;
+    const [val, nextPos] = parseExpr(tokens, pos);
+    pos[0] = nextPos;
+    if (tokens[pos[0]] === ')') pos[0]++;
+    return [val, pos[0]];
+  }
+  const num = parseFloat(tok);
+  pos[0]++;
+  return [Number.isNaN(num) ? 0 : num, pos[0]];
+}
+
+function parseMul(tokens, pos) {
+  let [left] = parseNum(tokens, pos);
+  while (pos[0] < tokens.length && (tokens[pos[0]] === '*' || tokens[pos[0]] === '/')) {
+    const op = tokens[pos[0]++];
+    const [right] = parseNum(tokens, pos);
+    left = op === '*' ? left * right : right !== 0 ? left / right : NaN;
+  }
+  return [left, pos[0]];
+}
+
+function parseExpr(tokens, pos) {
+  let [left] = parseMul(tokens, pos);
+  while (pos[0] < tokens.length && (tokens[pos[0]] === '+' || tokens[pos[0]] === '-')) {
+    const op = tokens[pos[0]++];
+    const [right] = parseMul(tokens, pos);
+    left = op === '+' ? left + right : left - right;
+  }
+  return [left, pos[0]];
+}
+
+function tokenize(expr) {
+  const result = [];
+  let i = 0;
+  while (i < expr.length) {
+    if (/\s/.test(expr[i])) { i++; continue; }
+    if (/[0-9.]/.test(expr[i])) {
+      let num = '';
+      while (i < expr.length && /[0-9.]/.test(expr[i])) num += expr[i++];
+      result.push(num);
+    } else {
+      result.push(expr[i++]);
+    }
+  }
+  return result;
+}
 
 function safeEval(expr) {
   try {
-    // Replace display tokens with JS operators
-    const cleaned = expr
-      .replace(/×/g, '*')
-      .replace(/÷/g, '/')
-      .replace(/[^0-9+\-*/.()]/g, '');
-    if (!cleaned) return '';
-    const result = Function('"use strict"; return (' + cleaned + ')')();
+    const cleaned = expr.replace(/×/g, '*').replace(/÷/g, '/');
+    const tokens = tokenize(cleaned);
+    if (!tokens.length) return '';
+    const pos = [0];
+    const [result] = parseExpr(tokens, pos);
     if (!Number.isFinite(result)) return 'Error';
     return String(parseFloat(result.toFixed(10)));
   } catch {
@@ -167,6 +217,10 @@ export default function ExamPage({ token, testId, setMessage }) {
   const [scratchpad, setScratchpad] = useState('');
 
   const autoSaveTimer = useRef(null);
+  // Refs to track latest state for submit (avoids stale closure issues)
+  const answersRef = useRef({});
+  const questionStatesRef = useRef({});
+  const questionTimesRef = useRef({});
 
   const [antiCheat, setAntiCheat] = useState({
     fullScreenExitCount: 0,
@@ -202,7 +256,7 @@ export default function ExamPage({ token, testId, setMessage }) {
     return test.sections;
   }, [test]);
 
-  function isAnswered(qId) {
+  const isAnswered = useCallback((qId) => {
     const a = answers[qId];
     if (!a) return false;
     if (a.selectedOptionId) return true;
@@ -210,9 +264,9 @@ export default function ExamPage({ token, testId, setMessage }) {
     if (a.numericAnswer !== undefined && a.numericAnswer !== '' && a.numericAnswer !== null)
       return true;
     return false;
-  }
+  }, [answers]);
 
-  function paletteStatus(q) {
+  const paletteStatus = useCallback((q) => {
     const answered = isAnswered(q.id);
     const { visited = false, markedForReview = false } = questionStates[q.id] || {};
     if (answered && markedForReview) return 'answered-marked';
@@ -220,7 +274,7 @@ export default function ExamPage({ token, testId, setMessage }) {
     if (markedForReview) return 'marked';
     if (visited) return 'visited';
     return 'not-visited';
-  }
+  }, [isAnswered, questionStates]);
 
   const counts = useMemo(() => {
     const questions = test?.questions || [];
@@ -236,21 +290,9 @@ export default function ExamPage({ token, testId, setMessage }) {
       else notVisited += 1;
     }
     return { answered, notAnswered, markedForReview, notVisited };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [test, answers, questionStates]);
+  }, [test, paletteStatus]);
 
   // ── offline sync ─────────────────────────────────────────────────────────
-
-  function saveToLocalStorage() {
-    try {
-      localStorage.setItem(
-        OFFLINE_SAVE_KEY(testId),
-        JSON.stringify({ answers, questionStates, questionTimes, endAt }),
-      );
-    } catch {
-      // ignore quota errors
-    }
-  }
 
   function loadFromLocalStorage() {
     try {
@@ -289,7 +331,19 @@ export default function ExamPage({ token, testId, setMessage }) {
 
   const doAutoSave = useCallback(
     async (currentAnswers, currentStates, currentTimes) => {
-      saveToLocalStorage();
+      // Update refs for latest snapshot
+      answersRef.current = currentAnswers;
+      questionStatesRef.current = currentStates;
+      questionTimesRef.current = currentTimes;
+
+      // Persist locally
+      try {
+        localStorage.setItem(
+          OFFLINE_SAVE_KEY(testId),
+          JSON.stringify({ answers: currentAnswers, questionStates: currentStates, questionTimes: currentTimes, endAt }),
+        );
+      } catch { /* ignore quota errors */ }
+
       if (!navigator.onLine || !test) return;
       try {
         await api.saveTestSession(token, test._id, {
@@ -304,7 +358,7 @@ export default function ExamPage({ token, testId, setMessage }) {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [token, test, currentQuestion, activeSection, antiCheat],
+    [token, test, testId, endAt, currentQuestion, activeSection, antiCheat],
   );
 
   // ── load / init ───────────────────────────────────────────────────────────
@@ -378,6 +432,10 @@ export default function ExamPage({ token, testId, setMessage }) {
       setAnswers(restoredAnswers);
       setQuestionStates(restoredStates);
       setQuestionTimes(restoredTimes);
+      // Sync refs with restored state
+      answersRef.current = restoredAnswers;
+      questionStatesRef.current = restoredStates;
+      questionTimesRef.current = restoredTimes;
 
       // Navigate to active question if resumed
       if (session?.activeQuestionId) {
@@ -407,7 +465,9 @@ export default function ExamPage({ token, testId, setMessage }) {
       setQuestionTimes((prev) => {
         const q = currentQuestion?.id;
         if (!q) return prev;
-        return { ...prev, [q]: (prev[q] || 0) + 1 };
+        const next = { ...prev, [q]: (prev[q] || 0) + 1 };
+        questionTimesRef.current = next;
+        return next;
       });
 
       const leftSec = Math.max(0, Math.floor((endAt - Date.now()) / 1000));
@@ -432,16 +492,8 @@ export default function ExamPage({ token, testId, setMessage }) {
   useEffect(() => {
     if (!test || submitted) return;
     autoSaveTimer.current = setInterval(() => {
-      setAnswers((a) => {
-        setQuestionStates((s) => {
-          setQuestionTimes((t) => {
-            doAutoSave(a, s, t);
-            return t;
-          });
-          return s;
-        });
-        return a;
-      });
+      // Use refs for latest state snapshot (avoids stale closure)
+      doAutoSave(answersRef.current, questionStatesRef.current, questionTimesRef.current);
     }, AUTO_SAVE_INTERVAL_MS);
     return () => clearInterval(autoSaveTimer.current);
   }, [test, submitted, doAutoSave]);
@@ -528,10 +580,11 @@ export default function ExamPage({ token, testId, setMessage }) {
   // ── question navigation ───────────────────────────────────────────────────
 
   function markVisited(qId) {
-    setQuestionStates((prev) => ({
-      ...prev,
-      [qId]: { ...(prev[qId] || {}), visited: true },
-    }));
+    setQuestionStates((prev) => {
+      const next = { ...prev, [qId]: { ...(prev[qId] || {}), visited: true } };
+      questionStatesRef.current = next;
+      return next;
+    });
   }
 
   function jumpToQuestion(index) {
@@ -551,10 +604,11 @@ export default function ExamPage({ token, testId, setMessage }) {
 
   function saveMCQ(optionId) {
     if (!currentQuestion) return;
-    setAnswers((prev) => ({
-      ...prev,
-      [currentQuestion.id]: { selectedOptionId: optionId, selectedOptionIds: [], numericAnswer: '' },
-    }));
+    setAnswers((prev) => {
+      const next = { ...prev, [currentQuestion.id]: { selectedOptionId: optionId, selectedOptionIds: [], numericAnswer: '' } };
+      answersRef.current = next;
+      return next;
+    });
   }
 
   function toggleMSQ(optionId) {
@@ -565,16 +619,19 @@ export default function ExamPage({ token, testId, setMessage }) {
       const next = ids.includes(optionId)
         ? ids.filter((id) => id !== optionId)
         : [...ids, optionId];
-      return { ...prev, [currentQuestion.id]: { ...cur, selectedOptionIds: next } };
+      const updated = { ...prev, [currentQuestion.id]: { ...cur, selectedOptionIds: next } };
+      answersRef.current = updated;
+      return updated;
     });
   }
 
   function saveNAT(value) {
     if (!currentQuestion) return;
-    setAnswers((prev) => ({
-      ...prev,
-      [currentQuestion.id]: { selectedOptionId: null, selectedOptionIds: [], numericAnswer: value },
-    }));
+    setAnswers((prev) => {
+      const next = { ...prev, [currentQuestion.id]: { selectedOptionId: null, selectedOptionIds: [], numericAnswer: value } };
+      answersRef.current = next;
+      return next;
+    });
   }
 
   function clearResponse() {
@@ -582,20 +639,25 @@ export default function ExamPage({ token, testId, setMessage }) {
     setAnswers((prev) => {
       const next = { ...prev };
       delete next[currentQuestion.id];
+      answersRef.current = next;
       return next;
     });
   }
 
   function toggleMarkForReview() {
     if (!currentQuestion) return;
-    setQuestionStates((prev) => ({
-      ...prev,
-      [currentQuestion.id]: {
-        ...(prev[currentQuestion.id] || {}),
-        visited: true,
-        markedForReview: !prev[currentQuestion.id]?.markedForReview,
-      },
-    }));
+    setQuestionStates((prev) => {
+      const next = {
+        ...prev,
+        [currentQuestion.id]: {
+          ...(prev[currentQuestion.id] || {}),
+          visited: true,
+          markedForReview: !prev[currentQuestion.id]?.markedForReview,
+        },
+      };
+      questionStatesRef.current = next;
+      return next;
+    });
   }
 
   // ── fullscreen ────────────────────────────────────────────────────────────
@@ -631,28 +693,27 @@ export default function ExamPage({ token, testId, setMessage }) {
     setIsSubmitting(true);
     setShowConfirm(false);
 
+    // Use refs for the latest state snapshot (avoids stale closure)
+    const currentAnswers = answersRef.current;
+    const currentStates = questionStatesRef.current;
+    const currentTimes = questionTimesRef.current;
+
     // Final save to localStorage before submit
-    saveToLocalStorage();
+    try {
+      localStorage.setItem(
+        OFFLINE_SAVE_KEY(testId),
+        JSON.stringify({ answers: currentAnswers, questionStates: currentStates, questionTimes: currentTimes, endAt }),
+      );
+    } catch { /* ignore */ }
 
     try {
-      let currentAnswers;
-      let currentStates;
-      let currentTimes;
-      // Read latest state snapshots via setter callback
-      await new Promise((resolve) => {
-        setAnswers((a) => { currentAnswers = a; return a; });
-        setQuestionStates((s) => { currentStates = s; return s; });
-        setQuestionTimes((t) => { currentTimes = t; return t; });
-        resolve();
-      });
-
       const durationSeconds = Math.max(0, Math.floor((Date.now() - (startAt || Date.now())) / 1000));
       const response = await api.submitTest(token, test._id, {
-        answers: buildAnswersList(currentAnswers || answers, currentStates || questionStates),
+        answers: buildAnswersList(currentAnswers, currentStates),
         durationSeconds,
         antiCheat,
         autoSubmitted,
-        questionTimes: currentTimes || questionTimes,
+        questionTimes: currentTimes,
       });
 
       setSubmitted(response);

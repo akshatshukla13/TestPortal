@@ -29,7 +29,9 @@ export async function listQuestionBank(req, res, next) {
     if (difficulty) filter.difficulty = difficulty;
     if (type) filter.type = type;
     if (search) {
-      filter['question.text'] = { $regex: search, $options: 'i' };
+      // Escape special regex characters to prevent ReDoS
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter['question.text'] = { $regex: escaped, $options: 'i' };
     }
 
     const skip = (Number(page) - 1) * Number(limit);

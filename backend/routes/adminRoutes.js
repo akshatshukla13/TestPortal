@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
 import {
   addQuestion,
   copyQuestions,
@@ -22,7 +23,16 @@ import { protect, requireRole } from '../middleware/auth.js';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-router.use(protect, requireRole('admin'));
+// Admin API rate limiter: 120 requests/minute per IP
+const adminLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many admin requests. Please slow down.' },
+});
+
+router.use(adminLimiter, protect, requireRole('admin'));
 
 router.get('/tests', getAllTests);
 router.post('/tests', createTest);

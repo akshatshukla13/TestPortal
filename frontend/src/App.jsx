@@ -21,6 +21,7 @@ function App() {
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   const isAdmin = auth.user?.role === 'admin';
 
@@ -29,10 +30,14 @@ function App() {
   }, [auth]);
 
   useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
     function onHashChange() {
       setRoute(parseRoute());
     }
-
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
@@ -107,17 +112,31 @@ function App() {
           <p className="eyebrow">GATE EXAM MOCK PORTAL</p>
           <h1>{auth.user ? `${auth.user.name} Workspace` : 'Exam Forge'}</h1>
         </div>
-        {auth.user && (
-          <div className="topbar-actions">
-            <span className="pill">{auth.user.role.toUpperCase()}</span>
-            <button type="button" className="secondary" onClick={logout}>
-              Logout
-            </button>
-          </div>
-        )}
+        <div className="topbar-actions">
+          <button
+            type="button"
+            className="secondary theme-toggle"
+            title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+            onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
+          {auth.user && (
+            <>
+              <span className="pill">{auth.user.role.toUpperCase()}</span>
+              <button type="button" className="secondary" onClick={logout}>
+                Logout
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
-      {message && <p className="flash">{message}</p>}
+      {message && (
+        <p className="flash" role="alert">
+          {message}
+        </p>
+      )}
       {renderContent()}
     </main>
   );

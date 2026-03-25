@@ -56,6 +56,8 @@ export const api = {
     request(`/admin/tests/${testId}/questions`, { method: 'POST', token, body: { question } }),
   copyQuestions: (token, testId, payload) =>
     request(`/admin/tests/${testId}/questions/copy`, { method: 'POST', token, body: payload }),
+  addBankQuestionsToTest: (token, testId, questionIds) =>
+    request(`/admin/tests/${testId}/questions/from-bank`, { method: 'POST', token, body: { questionIds } }),
   uploadImage: (token, file) => {
     const form = new FormData();
     form.append('image', file);
@@ -66,4 +68,17 @@ export const api = {
       isFormData: true,
     });
   },
+
+  // Question Bank
+  listQuestionBank: (token, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/admin/question-bank${qs ? '?' + qs : ''}`, { token });
+  },
+  getBankSubjects: (token) => request('/admin/question-bank/subjects', { token }),
+  createBankQuestion: (token, payload) =>
+    request('/admin/question-bank', { method: 'POST', token, body: payload }),
+  updateBankQuestion: (token, questionId, payload) =>
+    request(`/admin/question-bank/${questionId}`, { method: 'PATCH', token, body: payload }),
+  deleteBankQuestion: (token, questionId) =>
+    request(`/admin/question-bank/${questionId}`, { method: 'DELETE', token }),
 };

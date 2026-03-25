@@ -9,6 +9,14 @@ import {
   updateSchedule,
   uploadImage,
 } from '../controllers/adminController.js';
+import {
+  listQuestionBank,
+  createBankQuestion,
+  updateBankQuestion,
+  deleteBankQuestion,
+  addBankQuestionsToTest,
+  getDistinctSubjects,
+} from '../controllers/questionBankController.js';
 import { protect, requireRole } from '../middleware/auth.js';
 
 const router = Router();
@@ -22,6 +30,14 @@ router.patch('/tests/:testId/approve', updateApproval);
 router.patch('/tests/:testId/schedule', updateSchedule);
 router.post('/tests/:testId/questions', addQuestion);
 router.post('/tests/:testId/questions/copy', copyQuestions);
+router.post('/tests/:testId/questions/from-bank', addBankQuestionsToTest);
 router.post('/upload-image', upload.single('image'), uploadImage);
+
+// Question Bank
+router.get('/question-bank', listQuestionBank);
+router.get('/question-bank/subjects', getDistinctSubjects);
+router.post('/question-bank', createBankQuestion);
+router.patch('/question-bank/:questionId', updateBankQuestion);
+router.delete('/question-bank/:questionId', deleteBankQuestion);
 
 export default router;

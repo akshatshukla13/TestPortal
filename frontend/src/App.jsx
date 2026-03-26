@@ -4,6 +4,7 @@ import { api } from './api';
 import { parseRoute } from './router';
 import { readAuth, writeAuth } from './session';
 import AuthPanel from './components/AuthPanel';
+import StudentLayout from './components/student/StudentLayout';
 import DashboardPage from './pages/student/DashboardPage';
 import ExamPage from './pages/student/ExamPage';
 import ReportPage from './pages/student/ReportPage';
@@ -88,21 +89,31 @@ function App() {
     }
 
     if (route.page === 'test') {
-      return <ExamPage token={auth.token} testId={route.testId} setMessage={setMessage} />;
+      return (
+        <StudentLayout routePage={route.page}>
+          <ExamPage token={auth.token} testId={route.testId} setMessage={setMessage} />
+        </StudentLayout>
+      );
     }
 
     if (route.page === 'report') {
       return (
-        <ReportPage
-          token={auth.token}
-          tab={route.tab}
-          initialTestId={route.testId}
-          setMessage={setMessage}
-        />
+        <StudentLayout routePage={route.page}>
+          <ReportPage
+            token={auth.token}
+            tab={route.tab}
+            initialTestId={route.testId}
+            setMessage={setMessage}
+          />
+        </StudentLayout>
       );
     }
 
-    return <DashboardPage token={auth.token} setMessage={setMessage} />;
+    return (
+      <StudentLayout routePage={route.page}>
+        <DashboardPage token={auth.token} setMessage={setMessage} />
+      </StudentLayout>
+    );
   }
 
   return (

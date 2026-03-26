@@ -10,28 +10,7 @@ const TABS = [
 
 export default function ReportShell({ title, tab, testId, testName, onChangeTest, attempts, children }) {
   return (
-    <section className="grid grid-cols-[190px_1fr] min-h-[82vh] border border-[var(--line)] rounded-2xl overflow-hidden bg-[#f3f5f8]">
-      <aside className="bg-white border-r border-[var(--line)] p-3">
-        <div className="font-bold mb-3.5">Exam Forge</div>
-        <nav className="grid gap-[0.4rem]">
-          <button type="button" className="menu-item text-left bg-white text-[var(--ink)] border border-[var(--line)] w-full" onClick={() => goTo('/dashboard')}>
-            My Test
-          </button>
-          <button type="button" className="menu-item active text-left bg-white text-[var(--ink)] border border-[var(--line)] w-full">
-            Report
-          </button>
-          <button type="button" className="menu-item text-left bg-white text-[var(--ink)] border border-[var(--line)] w-full" onClick={() => goTo('/dashboard')}>
-            Bookmarks
-          </button>
-          <button type="button" className="menu-item text-left bg-white text-[var(--ink)] border border-[var(--line)] w-full" onClick={() => goTo('/dashboard')}>
-            Documents
-          </button>
-          <button type="button" className="menu-item text-left bg-white text-[var(--ink)] border border-[var(--line)] w-full" onClick={() => goTo('/dashboard')}>
-            Video
-          </button>
-        </nav>
-      </aside>
-
+    <section className="grid grid-cols-1 min-h-[82vh] border border-[var(--line)] rounded-2xl overflow-hidden bg-[#f3f5f8]">
       <div className="grid grid-rows-[auto_auto_1fr]">
         <header className="bg-[#2740c8] text-white flex justify-between items-center px-4 py-3">
           <h2 className="m-0 text-white">{testName || title}</h2>

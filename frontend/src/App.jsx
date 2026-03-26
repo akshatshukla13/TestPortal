@@ -106,7 +106,7 @@ function App() {
   }
 
   return (
-    <main className="w-[min(1600px,95vw)] mx-auto py-5 px-0">
+    <main >
       <header className="flex justify-between items-start gap-4 mb-4">
         <div className="flex items-center gap-3">
           <span className="text-[1.8rem] leading-none">🎓</span>

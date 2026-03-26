@@ -1,6 +1,8 @@
+import Card from './ui/Card';
+
 export default function AuthPanel({ authMode, authForm, loading, onMode, onChange, onSubmit }) {
   return (
-    <section className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)] max-w-[520px] mx-auto mt-8">
+    <Card className="p-4 max-w-[520px] mx-auto mt-8">
       <h2>GATE Mock Test Portal</h2>
       <p className="text-[var(--muted)] m-0">Login to take scheduled tests in secure mode and view full analytics.</p>
 
@@ -58,6 +60,6 @@ export default function AuthPanel({ authMode, authForm, loading, onMode, onChang
           {loading ? 'Please wait...' : authMode === 'login' ? 'Login' : 'Create Account'}
         </button>
       </form>
-    </section>
+    </Card>
   );
 }

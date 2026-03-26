@@ -276,19 +276,19 @@ export default function AdminPage({ token, setMessage }) {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <section className="admin-shell">
+    <section className="grid gap-4">
       {/* Admin tab bar */}
-      <div className="admin-tabs">
+      <div className="flex gap-2">
         <button
           type="button"
-          className={`section-tab${adminTab === 'tests' ? ' active' : ''}`}
+          className={`section-tab bg-[var(--card)] text-[var(--ink)] border border-[var(--line)] rounded-lg py-[0.38rem] px-[0.8rem] font-semibold text-sm cursor-pointer${adminTab === 'tests' ? ' active' : ''}`}
           onClick={() => setAdminTab('tests')}
         >
           🗂 Tests
         </button>
         <button
           type="button"
-          className={`section-tab${adminTab === 'bank' ? ' active' : ''}`}
+          className={`section-tab bg-[var(--card)] text-[var(--ink)] border border-[var(--line)] rounded-lg py-[0.38rem] px-[0.8rem] font-semibold text-sm cursor-pointer${adminTab === 'bank' ? ' active' : ''}`}
           onClick={() => setAdminTab('bank')}
         >
           📚 Question Bank
@@ -297,10 +297,10 @@ export default function AdminPage({ token, setMessage }) {
 
       {/* ── Tests Tab ────────────────────────────────────────────────────── */}
       {adminTab === 'tests' && (
-        <section className="dashboard-layout">
-          <article className="card panel-left">
+        <section className="grid grid-cols-[420px_1fr] gap-4">
+          <article className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)]">
             <h2>Create Test</h2>
-            <form className="stack" onSubmit={createTest}>
+            <form className="grid gap-3" onSubmit={createTest}>
               <label>
                 Title
                 <input
@@ -316,7 +316,7 @@ export default function AdminPage({ token, setMessage }) {
                   onChange={(e) => setNewTest((p) => ({ ...p, tags: e.target.value }))}
                 />
               </label>
-              <div className="double-grid">
+              <div className="grid grid-cols-2 gap-2">
                 <label>
                   Duration (min)
                   <input
@@ -334,7 +334,7 @@ export default function AdminPage({ token, setMessage }) {
                   />
                 </label>
               </div>
-              <div className="double-grid">
+              <div className="grid grid-cols-2 gap-2">
                 <label>
                   Start Time
                   <input
@@ -352,7 +352,7 @@ export default function AdminPage({ token, setMessage }) {
                   />
                 </label>
               </div>
-              <label className="inline-check" style={{ fontWeight: 400 }}>
+              <label className="flex items-center gap-2 font-semibold" style={{ fontWeight: 400 }}>
                 <input
                   type="checkbox"
                   checked={newTest.isApproved}
@@ -364,7 +364,7 @@ export default function AdminPage({ token, setMessage }) {
             </form>
           </article>
 
-          <article className="card panel-right">
+          <article className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)]">
             <h2>Manage Test</h2>
             <label>
               Select Test
@@ -378,24 +378,24 @@ export default function AdminPage({ token, setMessage }) {
               </select>
             </label>
             {selectedTest && (
-              <div className="stack" style={{ marginTop: '0.7rem' }}>
-                <div className="button-row">
+              <div className="grid gap-3" style={{ marginTop: '0.7rem' }}>
+                <div className="flex gap-2">
                   <button type="button" onClick={() => updateApproval(true)}>✅ Approve</button>
                   <button type="button" className="secondary" onClick={() => updateApproval(false)}>Unapprove</button>
                 </div>
-                <div className="kv-list">
-                  <div><span>Questions</span><strong>{selectedTest.questions?.length || 0}</strong></div>
-                  <div><span>Duration</span><strong>{selectedTest.durationMinutes} min</strong></div>
-                  <div><span>Total Marks</span><strong>{selectedTest.totalMarks}</strong></div>
-                  <div><span>Status</span><strong>{selectedTest.isApproved ? '✅ Approved' : '⏳ Draft'}</strong></div>
+                <div className="grid gap-1.5 mb-3">
+                  <div className="flex justify-between border-b border-[var(--line)] pb-1"><span>Questions</span><strong>{selectedTest.questions?.length || 0}</strong></div>
+                  <div className="flex justify-between border-b border-[var(--line)] pb-1"><span>Duration</span><strong>{selectedTest.durationMinutes} min</strong></div>
+                  <div className="flex justify-between border-b border-[var(--line)] pb-1"><span>Total Marks</span><strong>{selectedTest.totalMarks}</strong></div>
+                  <div className="flex justify-between border-b border-[var(--line)] pb-1"><span>Status</span><strong>{selectedTest.isApproved ? '✅ Approved' : '⏳ Draft'}</strong></div>
                 </div>
               </div>
             )}
           </article>
 
-          <article className="card full-width">
+          <article className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)] col-span-full">
             <h2>Add Question to Test</h2>
-            <form className="stack" onSubmit={addQuestion}>
+            <form className="grid gap-3" onSubmit={addQuestion}>
               <label>
                 Question Text
                 <textarea
@@ -414,9 +414,9 @@ export default function AdminPage({ token, setMessage }) {
                   onChange={(e) => uploadImage(e.target.files?.[0], 'question')}
                 />
               </label>
-              <div className="option-grid">
+              <div className="grid grid-cols-2 gap-2.5">
                 {questionDraft.options.map((opt, i) => (
-                  <div className="option-card" key={opt.id}>
+                  <div className="border border-[var(--line)] rounded-xl p-2.5 bg-white" key={opt.id}>
                     <label>
                       Option {opt.id}
                       <input
@@ -434,7 +434,7 @@ export default function AdminPage({ token, setMessage }) {
                       accept="image/*"
                       onChange={(e) => uploadImage(e.target.files?.[0], 'option', i)}
                     />
-                    <label className="inline-check">
+                    <label className="flex items-center gap-2 font-semibold">
                       <input
                         type="radio"
                         checked={opt.isCorrect}
@@ -459,9 +459,9 @@ export default function AdminPage({ token, setMessage }) {
 
       {/* ── Question Bank Tab ─────────────────────────────────────────────── */}
       {adminTab === 'bank' && (
-        <section className="bank-tab">
+        <section className="grid gap-3">
           {/* Bank form */}
-          <div className="bank-form-toggle">
+          <div className="flex justify-end">
             <button
               type="button"
               onClick={() => {
@@ -474,10 +474,10 @@ export default function AdminPage({ token, setMessage }) {
           </div>
 
           {bankFormOpen && (
-            <article className="card" style={{ marginBottom: '1rem' }}>
+            <article className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)]" style={{ marginBottom: '1rem' }}>
               <h3>{editingBankId ? 'Edit Question' : 'Add to Question Bank'}</h3>
-              <form className="stack" onSubmit={saveBankQuestion}>
-                <div className="double-grid">
+              <form className="grid gap-3" onSubmit={saveBankQuestion}>
+                <div className="grid grid-cols-2 gap-2">
                   <label>
                     Type
                     <select
@@ -501,7 +501,7 @@ export default function AdminPage({ token, setMessage }) {
                     </select>
                   </label>
                 </div>
-                <div className="double-grid">
+                <div className="grid grid-cols-2 gap-2">
                   <label>
                     Subject
                     <input
@@ -537,9 +537,9 @@ export default function AdminPage({ token, setMessage }) {
                 </label>
 
                 {(bankDraft.type === 'MCQ' || bankDraft.type === 'MSQ') && (
-                  <div className="option-grid">
+                  <div className="grid grid-cols-2 gap-2.5">
                     {bankDraft.options.map((opt, i) => (
-                      <div className="option-card" key={opt.id}>
+                      <div className="border border-[var(--line)] rounded-xl p-2.5 bg-white" key={opt.id}>
                         <label>
                           Option {opt.id}
                           <input
@@ -556,7 +556,7 @@ export default function AdminPage({ token, setMessage }) {
                           accept="image/*"
                           onChange={(e) => uploadBankImage(e.target.files?.[0], 'option', i)}
                         />
-                        <label className="inline-check">
+                        <label className="flex items-center gap-2 font-semibold">
                           <input
                             type={bankDraft.type === 'MSQ' ? 'checkbox' : 'radio'}
                             checked={opt.isCorrect}
@@ -579,7 +579,7 @@ export default function AdminPage({ token, setMessage }) {
                 )}
 
                 {bankDraft.type === 'NAT' && (
-                  <div className="double-grid">
+                  <div className="grid grid-cols-2 gap-2">
                     <label>
                       Correct Answer
                       <input
@@ -609,7 +609,7 @@ export default function AdminPage({ token, setMessage }) {
                   </div>
                 )}
 
-                <div className="double-grid">
+                <div className="grid grid-cols-2 gap-2">
                   <label>
                     Marks (+)
                     <input
@@ -653,7 +653,7 @@ export default function AdminPage({ token, setMessage }) {
                   />
                 </label>
 
-                <div className="button-row">
+                <div className="flex gap-2">
                   <button type="submit">{editingBankId ? 'Update Question' : 'Save to Bank'}</button>
                   <button
                     type="button"
@@ -673,7 +673,7 @@ export default function AdminPage({ token, setMessage }) {
 
           {/* Add selected to test bar */}
           {selectedBankIds.length > 0 && (
-            <div className="bank-action-bar card">
+            <div className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)] flex items-center gap-3 flex-wrap px-3.5 py-2.5 bg-blue-50 border-blue-300">
               <span>{selectedBankIds.length} question(s) selected</span>
               <label>
                 Add to test:
@@ -690,7 +690,7 @@ export default function AdminPage({ token, setMessage }) {
           )}
 
           {/* Bank filters */}
-          <div className="bank-filters card">
+          <div className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)] px-4 py-3">
             <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
               <label style={{ flex: 1, minWidth: 150 }}>
                 Search
@@ -734,23 +734,23 @@ export default function AdminPage({ token, setMessage }) {
                 Reset
               </button>
             </div>
-            <p className="muted small" style={{ marginTop: '0.5rem' }}>
+            <p className="text-[var(--muted)] m-0 mt-1 text-sm" style={{ marginTop: '0.5rem' }}>
               {bankTotal} question(s) in bank
             </p>
           </div>
 
           {/* Bank question list */}
-          <div className="stack">
+          <div className="grid gap-3">
             {bankQuestions.length === 0 && (
-              <p className="muted">No questions in bank. Add some above.</p>
+              <p className="text-[var(--muted)] m-0">No questions in bank. Add some above.</p>
             )}
             {bankQuestions.map((q) => (
               <div
                 key={q._id}
-                className={`bank-q-item card${selectedBankIds.includes(q._id) ? ' bank-q-selected' : ''}`}
+                className={`bg-white border border-[var(--line)] rounded-2xl shadow-[0_16px_40px_rgba(21,29,43,0.08)] px-3.5 py-2.5${selectedBankIds.includes(q._id) ? ' bank-q-selected' : ''}`}
               >
-                <div className="bank-q-meta">
-                  <label className="inline-check" style={{ fontWeight: 400 }}>
+                <div className="flex flex-wrap gap-1.5 items-center mb-1.5">
+                  <label className="flex items-center gap-2 font-semibold" style={{ fontWeight: 400 }}>
                     <input
                       type="checkbox"
                       checked={selectedBankIds.includes(q._id)}
@@ -758,15 +758,15 @@ export default function AdminPage({ token, setMessage }) {
                     />
                     &nbsp;
                   </label>
-                  <span className="tag-pill type-pill">{q.type}</span>
-                  <span className="tag-pill">{q.subject}</span>
-                  <span className="tag-pill">{q.topic}</span>
-                  <span className="tag-pill">{q.difficulty}</span>
+                  <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1 type-pill">{q.type}</span>
+                  <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{q.subject}</span>
+                  <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{q.topic}</span>
+                  <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{q.difficulty}</span>
                   <span className="pill">+{q.marks?.total}</span>
                   {q.marks?.negative > 0 && <span className="pill danger">−{q.marks.negative}</span>}
                 </div>
-                <p className="bank-q-text">{q.question?.text}</p>
-                <div className="button-row" style={{ marginTop: '0.4rem' }}>
+                <p className="m-0 text-sm text-[var(--ink)] line-clamp-2">{q.question?.text}</p>
+                <div className="flex gap-2" style={{ marginTop: '0.4rem' }}>
                   <button type="button" className="secondary" onClick={() => startEditBank(q)}>
                     ✏️ Edit
                   </button>
@@ -780,7 +780,7 @@ export default function AdminPage({ token, setMessage }) {
 
           {/* Pagination */}
           {bankTotal > 30 && (
-            <div className="button-row" style={{ marginTop: '0.8rem' }}>
+            <div className="flex gap-2" style={{ marginTop: '0.8rem' }}>
               <button
                 type="button"
                 className="secondary"
@@ -789,7 +789,7 @@ export default function AdminPage({ token, setMessage }) {
               >
                 ← Prev
               </button>
-              <span className="muted">Page {bankPage} / {Math.ceil(bankTotal / 30)}</span>
+              <span className="text-[var(--muted)] m-0">Page {bankPage} / {Math.ceil(bankTotal / 30)}</span>
               <button
                 type="button"
                 className="secondary"

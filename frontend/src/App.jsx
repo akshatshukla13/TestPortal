@@ -106,19 +106,19 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div className="topbar-brand">
-          <span className="topbar-logo">🎓</span>
+    <main className="w-[min(1600px,95vw)] mx-auto py-5 px-0">
+      <header className="flex justify-between items-start gap-4 mb-4">
+        <div className="flex items-center gap-3">
+          <span className="text-[1.8rem] leading-none">🎓</span>
           <div>
-            <p className="eyebrow">GATE EXAM MOCK PORTAL</p>
+            <p className="m-0 text-[var(--muted)] tracking-[0.12em] uppercase text-[0.76rem]">GATE EXAM MOCK PORTAL</p>
             <h1>{auth.user ? `${auth.user.name}'s Workspace` : 'Exam Forge'}</h1>
           </div>
         </div>
-        <div className="topbar-actions">
+        <div className="flex gap-2.5 items-center">
           <button
             type="button"
-            className="secondary theme-toggle"
+            className="secondary text-[1.1rem] px-[0.6rem] py-[0.4rem] rounded-full"
             title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
             onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
           >
@@ -126,8 +126,8 @@ function App() {
           </button>
           {auth.user && (
             <>
-              <span className="pill">{auth.user.role.toUpperCase()}</span>
-              <span className="topbar-username">{auth.user.email}</span>
+              <span className="inline-flex items-center rounded-full border border-[var(--line)] px-2 py-0.5 text-xs bg-white">{auth.user.role.toUpperCase()}</span>
+              <span className="text-xs text-[var(--muted)] max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">{auth.user.email}</span>
               <button type="button" className="secondary" onClick={logout}>
                 Logout
               </button>
@@ -137,7 +137,7 @@ function App() {
       </header>
 
       {message && (
-        <p className="flash" role="alert">
+        <p className="mb-4 px-3.5 py-3 rounded-xl border border-[var(--line)] bg-white" role="alert">
           {message}
         </p>
       )}

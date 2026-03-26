@@ -126,22 +126,24 @@ function Calculator({ onClose }) {
   ];
 
   return (
-    <div className="calc-panel">
-      <div className="calc-header">
+    <div className="fixed bottom-6 right-6 w-[220px] bg-white border border-[var(--line)] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.18)] z-[8888] overflow-hidden">
+      <div className="bg-[#1e293b] text-white flex justify-between items-center px-[0.7rem] py-[0.45rem] font-bold text-[0.88rem]">
         <span>Calculator</span>
-        <button type="button" className="calc-close" onClick={onClose}>✕</button>
+        <button type="button" className="bg-transparent border-none text-white p-0 cursor-pointer text-base leading-none" onClick={onClose}>✕</button>
       </div>
-      <div className="calc-expr">{expr || '\u00a0'}</div>
-      <div className="calc-display">{display}</div>
-      <div className="calc-keys">
+      <div className="bg-[#0f172a] text-[#64748b] text-xs px-[0.7rem] pt-[0.2rem] text-right min-h-[1.3rem] font-mono">{expr || '\u00a0'}</div>
+      <div className="bg-[#0f172a] text-[#f8fafc] text-2xl font-bold text-right px-[0.7rem] pb-[0.4rem] pt-[0.15rem] font-mono break-all">{display}</div>
+      <div className="p-[0.4rem] grid gap-[0.3rem]">
         {rows.map((row, ri) => (
-          <div key={ri} className="calc-row">{/* rows are static, index key is safe */}
+          <div key={ri} className="flex gap-[0.3rem]">{/* rows are static, index key is safe */}
             {row.map((k) => (
               <button
                 key={k}
                 type="button"
-                className={`calc-key${['='].includes(k) ? ' calc-key-eq' : ''}${
-                  ['C'].includes(k) ? ' calc-key-clear' : ''
+                className={`flex-1 border border-[var(--line)] rounded-lg py-2 text-[0.9rem] font-semibold cursor-pointer${
+                  k === '=' ? ' bg-[#008870] text-white border-[#008870]' : ''
+                }${k === 'C' ? ' bg-[#fee2e2] text-[#7f1d1d] border-[#fca5a5]' : ''}${
+                  k !== '=' && k !== 'C' ? ' bg-[var(--card-soft)] text-[var(--ink)]' : ''
                 }`}
                 onClick={() => press(k)}
               >
@@ -159,29 +161,29 @@ function Calculator({ onClose }) {
 
 function SubmitDialog({ counts, onConfirm, onCancel }) {
   return (
-    <div className="modal-backdrop">
-      <div className="modal-box">
+    <div className="fixed inset-0 bg-black/45 flex items-center justify-center z-[9999]">
+      <div className="bg-white border border-[var(--line)] rounded-2xl p-5 w-[min(440px,92vw)] shadow-[0_24px_60px_rgba(0,0,0,0.2)]">
         <h3>Submit Test?</h3>
-        <p className="muted">Once submitted, you cannot change your answers.</p>
-        <div className="submit-counts">
-          <div className="submit-count-item answered">
+        <p className="text-[var(--muted)] m-0">Once submitted, you cannot change your answers.</p>
+        <div className="grid grid-cols-2 gap-2.5 mt-3.5">
+          <div className="submit-count-item answered rounded-xl p-2.5 text-center flex flex-col gap-1">
             <strong>{counts.answered}</strong>
             <span>Answered</span>
           </div>
-          <div className="submit-count-item not-answered">
+          <div className="submit-count-item not-answered rounded-xl p-2.5 text-center flex flex-col gap-1">
             <strong>{counts.notAnswered}</strong>
             <span>Not Answered</span>
           </div>
-          <div className="submit-count-item marked">
+          <div className="submit-count-item marked rounded-xl p-2.5 text-center flex flex-col gap-1">
             <strong>{counts.markedForReview}</strong>
             <span>Marked for Review</span>
           </div>
-          <div className="submit-count-item not-visited">
+          <div className="submit-count-item not-visited rounded-xl p-2.5 text-center flex flex-col gap-1">
             <strong>{counts.notVisited}</strong>
             <span>Not Visited</span>
           </div>
         </div>
-        <div className="button-row" style={{ justifyContent: 'flex-end', marginTop: '1rem' }}>
+        <div className="flex gap-2" style={{ justifyContent: 'flex-end', marginTop: '1rem' }}>
           <button type="button" className="secondary" onClick={onCancel}>Cancel</button>
           <button type="button" onClick={onConfirm}>Submit</button>
         </div>
@@ -739,12 +741,12 @@ export default function ExamPage({ token, testId, setMessage }) {
 
     if (currentQuestion.type === 'NAT') {
       return (
-        <div className="nat-input-wrap">
-          <label className="nat-label">
+        <div className="my-2">
+          <label className="font-semibold grid gap-[0.4rem]">
             Enter your answer:
             <input
               type="number"
-              className="nat-input"
+              className="max-w-[240px] text-[1.05rem] px-3 py-2"
               value={a.numericAnswer ?? ''}
               onChange={(e) => saveNAT(e.target.value)}
               placeholder="Type numeric answer"
@@ -752,7 +754,7 @@ export default function ExamPage({ token, testId, setMessage }) {
             />
           </label>
           {currentQuestion.numerical?.min !== null && (
-            <p className="muted small">
+            <p className="text-[var(--muted)] m-0 mt-1 text-sm">
               Range: [{currentQuestion.numerical.min}, {currentQuestion.numerical.max}]
             </p>
           )}
@@ -762,10 +764,10 @@ export default function ExamPage({ token, testId, setMessage }) {
 
     if (currentQuestion.type === 'MSQ') {
       return (
-        <div className="stack">
-          <p className="msq-hint muted small">Select all correct options:</p>
+        <div className="grid gap-3">
+          <p className="m-0 text-[var(--muted)] text-sm">Select all correct options:</p>
           {(currentQuestion.options || []).map((option) => (
-            <label key={option.id} className="option">
+            <label key={option.id} className="flex gap-2 font-medium items-start">
               <input
                 type="checkbox"
                 checked={(a.selectedOptionIds || []).includes(option.id)}
@@ -773,7 +775,7 @@ export default function ExamPage({ token, testId, setMessage }) {
               />
               <span>
                 {option.id}. {option.text}
-                {option.image && <img src={option.image} alt="" className="option-img" />}
+                {option.image && <img src={option.image} alt="" className="max-w-[140px] block mt-1 rounded-lg border border-[var(--line)]" />}
               </span>
             </label>
           ))}
@@ -783,9 +785,9 @@ export default function ExamPage({ token, testId, setMessage }) {
 
     // MCQ (default)
     return (
-      <div className="stack">
+      <div className="grid gap-3">
         {(currentQuestion.options || []).map((option) => (
-          <label key={option.id} className="option">
+          <label key={option.id} className="flex gap-2 font-medium items-start">
             <input
               type="radio"
               checked={a.selectedOptionId === option.id}
@@ -793,7 +795,7 @@ export default function ExamPage({ token, testId, setMessage }) {
             />
             <span>
               {option.id}. {option.text}
-              {option.image && <img src={option.image} alt="" className="option-img" />}
+              {option.image && <img src={option.image} alt="" className="max-w-[140px] block mt-1 rounded-lg border border-[var(--line)]" />}
             </span>
           </label>
         ))}
@@ -805,8 +807,8 @@ export default function ExamPage({ token, testId, setMessage }) {
 
   if (!test) {
     return (
-      <main className="exam-shell">
-        <section className="card"><h2>Loading test...</h2></section>
+      <main className="w-[min(1500px,96vw)] mx-auto grid gap-3">
+        <section className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)]"><h2>Loading test...</h2></section>
       </main>
     );
   }
@@ -819,53 +821,53 @@ export default function ExamPage({ token, testId, setMessage }) {
       : 0;
 
     return (
-      <main className="exam-shell">
-        <section className="exam-complete-screen">
-          <div className="exam-complete-hero">
-            <div className="exam-complete-icon">✅</div>
+      <main className="w-[min(1500px,96vw)] mx-auto grid gap-3">
+        <section className="max-w-[640px] mx-auto mt-[6vh] bg-white border border-[var(--line)] rounded-[20px] p-8 shadow-[0_20px_60px_rgba(21,29,43,0.1)] text-center">
+          <div className="mb-6">
+            <div className="text-5xl mb-2">✅</div>
             <h2>Test Submitted Successfully!</h2>
-            <p className="muted">Your responses have been recorded. Here is your summary.</p>
+            <p className="text-[var(--muted)] m-0">Your responses have been recorded. Here is your summary.</p>
           </div>
 
-          <div className="exam-complete-stats">
-            <div className="exam-complete-stat">
-              <span className="exam-complete-stat-value">{submitted.score}</span>
-              <span className="exam-complete-stat-label">Score</span>
+          <div className="grid grid-cols-4 gap-3 mb-6">
+            <div className="bg-[var(--card-soft)] border border-[var(--line)] rounded-xl p-3 flex flex-col gap-1">
+              <span className="text-[1.4rem] font-bold text-[var(--accent)]">{submitted.score}</span>
+              <span className="text-xs text-[var(--muted)] font-semibold">Score</span>
             </div>
-            <div className="exam-complete-stat">
-              <span className="exam-complete-stat-value">{submitted.totalMarks}</span>
-              <span className="exam-complete-stat-label">Total Marks</span>
+            <div className="bg-[var(--card-soft)] border border-[var(--line)] rounded-xl p-3 flex flex-col gap-1">
+              <span className="text-[1.4rem] font-bold text-[var(--accent)]">{submitted.totalMarks}</span>
+              <span className="text-xs text-[var(--muted)] font-semibold">Total Marks</span>
             </div>
-            <div className="exam-complete-stat">
-              <span className="exam-complete-stat-value">{percentage}%</span>
-              <span className="exam-complete-stat-label">Percentage</span>
+            <div className="bg-[var(--card-soft)] border border-[var(--line)] rounded-xl p-3 flex flex-col gap-1">
+              <span className="text-[1.4rem] font-bold text-[var(--accent)]">{percentage}%</span>
+              <span className="text-xs text-[var(--muted)] font-semibold">Percentage</span>
             </div>
-            <div className="exam-complete-stat">
-              <span className="exam-complete-stat-value">{durationMin}m {durationSec}s</span>
-              <span className="exam-complete-stat-label">Time Taken</span>
+            <div className="bg-[var(--card-soft)] border border-[var(--line)] rounded-xl p-3 flex flex-col gap-1">
+              <span className="text-[1.4rem] font-bold text-[var(--accent)]">{durationMin}m {durationSec}s</span>
+              <span className="text-xs text-[var(--muted)] font-semibold">Time Taken</span>
             </div>
           </div>
 
-          <div className="exam-complete-counts">
-            <div className="submit-count-item answered">
+          <div className="grid grid-cols-4 gap-2.5 mb-2">
+            <div className="submit-count-item answered rounded-xl p-2.5 text-center flex flex-col gap-1">
               <strong>{counts.answered}</strong>
               <span>Answered</span>
             </div>
-            <div className="submit-count-item not-answered">
+            <div className="submit-count-item not-answered rounded-xl p-2.5 text-center flex flex-col gap-1">
               <strong>{counts.notAnswered}</strong>
               <span>Visited</span>
             </div>
-            <div className="submit-count-item marked">
+            <div className="submit-count-item marked rounded-xl p-2.5 text-center flex flex-col gap-1">
               <strong>{counts.markedForReview}</strong>
               <span>Marked</span>
             </div>
-            <div className="submit-count-item not-visited">
+            <div className="submit-count-item not-visited rounded-xl p-2.5 text-center flex flex-col gap-1">
               <strong>{counts.notVisited}</strong>
               <span>Not Visited</span>
             </div>
           </div>
 
-          <div className="button-row" style={{ justifyContent: 'center', marginTop: '1.6rem', gap: '0.8rem' }}>
+          <div className="flex gap-2" style={{ justifyContent: 'center', marginTop: '1.6rem', gap: '0.8rem' }}>
             <button type="button" onClick={() => (window.location.hash = '#/dashboard')}>
               📊 Open Dashboard
             </button>
@@ -885,33 +887,33 @@ export default function ExamPage({ token, testId, setMessage }) {
   const timerClass = leftSec <= LOW_TIME_WARN_SECS ? 'pill danger' : 'pill';
 
   return (
-    <main className="exam-shell">
+    <main className="w-[min(1500px,96vw)] mx-auto grid gap-3">
       {/* Offline banner */}
       {isOffline && (
-        <div className="offline-banner">
+        <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-3.5 py-2.5 font-semibold text-sm">
           ⚠️ You are offline. Answers are being saved locally and will sync when reconnected.
         </div>
       )}
 
       {/* Low-time warning */}
       {lowTimeWarning && leftSec > 0 && (
-        <div className="warn-banner">
+        <div className="bg-orange-50 border border-orange-300 text-orange-900 rounded-xl px-3.5 py-2.5 font-semibold text-sm flex items-center">
           ⏰ Less than 10 minutes remaining! Please review and submit.
           <button type="button" className="secondary" style={{ marginLeft: '0.7rem', padding: '0.2rem 0.6rem' }} onClick={() => setLowTimeWarning(false)}>✕</button>
         </div>
       )}
 
       {/* Topbar */}
-      <section className="card exam-topbar">
+      <section className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)] flex justify-between gap-3 items-start">
         <div>
           <h2>{test.title}</h2>
-          <p className="muted">
-            {test.category && <span className="tag-pill">{test.category}</span>}
-            {test.difficultyLevel && <span className="tag-pill">{test.difficultyLevel}</span>}
+          <p className="text-[var(--muted)] m-0">
+            {test.category && <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{test.category}</span>}
+            {test.difficultyLevel && <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{test.difficultyLevel}</span>}
             &nbsp;{test.totalMarks} marks · {test.questions?.length || 0} questions
           </p>
         </div>
-        <div className="exam-meta">
+        <div className="flex items-center gap-2 flex-wrap">
           {violationScore > 0 && <span className="pill danger">Violations: {violationScore}</span>}
           <span className={timerClass}>⏱ {leftTime}</span>
           <button type="button" className="secondary" onClick={() => setShowCalc((v) => !v)}>
@@ -928,10 +930,10 @@ export default function ExamPage({ token, testId, setMessage }) {
 
       {/* Section tabs */}
       {sections.length > 0 && (
-        <div className="section-tabs">
+        <div className="flex gap-[0.4rem] flex-wrap py-[0.2rem]">
           <button
             type="button"
-            className={`section-tab${!activeSection ? ' active' : ''}`}
+            className={`section-tab bg-[var(--card)] text-[var(--ink)] border border-[var(--line)] rounded-lg py-[0.38rem] px-[0.8rem] font-semibold text-sm cursor-pointer${!activeSection ? ' active' : ''}`}
             onClick={() => { setActiveSection(null); setCurrentIndex(0); }}
           >
             All
@@ -940,7 +942,7 @@ export default function ExamPage({ token, testId, setMessage }) {
             <button
               key={sec.key}
               type="button"
-              className={`section-tab${activeSection === sec.key ? ' active' : ''}`}
+              className={`section-tab bg-[var(--card)] text-[var(--ink)] border border-[var(--line)] rounded-lg py-[0.38rem] px-[0.8rem] font-semibold text-sm cursor-pointer${activeSection === sec.key ? ' active' : ''}`}
               onClick={() => { setActiveSection(sec.key); setCurrentIndex(0); }}
             >
               {sec.title}
@@ -950,18 +952,18 @@ export default function ExamPage({ token, testId, setMessage }) {
       )}
 
       {/* Main grid */}
-      <section className="exam-grid">
-        <article className="card exam-question-view">
+      <section className="grid grid-cols-[1fr_270px] gap-3">
+        <article className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)] min-h-[65vh]">
           {/* Question header */}
-          <div className="q-header">
-            <div className="q-meta">
+          <div className="flex justify-between items-start flex-wrap gap-2 mb-3">
+            <div className="flex flex-wrap gap-1.5 items-center">
               <span className="pill">Q {currentIndex + 1} / {filteredQuestions.length}</span>
-              {currentQuestion?.subject && <span className="tag-pill">{currentQuestion.subject}</span>}
-              {currentQuestion?.topic && <span className="tag-pill">{currentQuestion.topic}</span>}
-              {currentQuestion?.difficulty && <span className="tag-pill">{currentQuestion.difficulty}</span>}
-              {currentQuestion?.type && <span className="tag-pill type-pill">{currentQuestion.type}</span>}
+              {currentQuestion?.subject && <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{currentQuestion.subject}</span>}
+              {currentQuestion?.topic && <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{currentQuestion.topic}</span>}
+              {currentQuestion?.difficulty && <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{currentQuestion.difficulty}</span>}
+              {currentQuestion?.type && <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1 type-pill">{currentQuestion.type}</span>}
             </div>
-            <div className="q-marks">
+            <div className="flex gap-[0.35rem] items-center">
               <span className="pill">+{currentQuestion?.marks?.total ?? 1}</span>
               {(currentQuestion?.marks?.negative ?? 0) > 0 && (
                 <span className="pill danger">−{currentQuestion.marks.negative}</span>
@@ -970,10 +972,10 @@ export default function ExamPage({ token, testId, setMessage }) {
           </div>
 
           {/* Question text */}
-          <div className="q-body">
-            <p className="q-text">{currentQuestion?.question?.text}</p>
+          <div className="mb-4">
+            <p className="text-[1.05rem] leading-[1.65] m-0 mb-2 whitespace-pre-wrap">{currentQuestion?.question?.text}</p>
             {currentQuestion?.question?.image && (
-              <img src={currentQuestion.question.image} alt="Question" className="q-img" />
+              <img src={currentQuestion.question.image} alt="Question" className="max-w-full border border-[var(--line)] rounded-xl mt-2" />
             )}
           </div>
 
@@ -981,8 +983,8 @@ export default function ExamPage({ token, testId, setMessage }) {
           {renderAnswerInput()}
 
           {/* Action row */}
-          <div className="exam-action-row">
-            <div className="button-row">
+          <div className="flex justify-between items-center flex-wrap gap-2.5 mt-4 pt-3 border-t border-[var(--line)]">
+            <div className="flex gap-2">
               <button type="button" className="secondary" onClick={goPrev} disabled={currentIndex === 0}>
                 ← Previous
               </button>
@@ -990,7 +992,7 @@ export default function ExamPage({ token, testId, setMessage }) {
                 Next →
               </button>
             </div>
-            <div className="button-row">
+            <div className="flex gap-2">
               <button
                 type="button"
                 className={`secondary${questionStates[currentQuestion?.id]?.markedForReview ? ' marked-active' : ''}`}
@@ -1003,7 +1005,7 @@ export default function ExamPage({ token, testId, setMessage }) {
               </button>
               <button
                 type="button"
-                className="submit-btn"
+                className="bg-red-600 border-red-600"
                 onClick={handleSubmitClick}
                 disabled={isSubmitting}
               >
@@ -1014,17 +1016,17 @@ export default function ExamPage({ token, testId, setMessage }) {
         </article>
 
         {/* Palette */}
-        <aside className="card exam-palette">
+        <aside className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)] sticky top-2 h-fit">
           <h4>Question Palette</h4>
 
           {sections.length > 0 && (
-            <div className="palette-sections">
+            <div>
               {sections.map((sec) => {
                 const secQs = (test.questions || []).filter((q) => q.section === sec.key);
                 return (
-                  <div key={sec.key} className="palette-section-group">
-                    <p className="palette-section-title">{sec.title}</p>
-                    <div className="palette-grid">
+                  <div key={sec.key} className="mb-3">
+                    <p className="text-xs font-bold text-[var(--muted)] m-0 mb-1 uppercase tracking-[0.06em]">{sec.title}</p>
+                    <div className="grid grid-cols-6 gap-1.5">
                       {secQs.map((q) => {
                         const globalIdx = (test.questions || []).findIndex((tq) => tq.id === q.id);
                         const inFiltered = filteredQuestions.findIndex((fq) => fq.id === q.id);
@@ -1032,7 +1034,7 @@ export default function ExamPage({ token, testId, setMessage }) {
                           <button
                             key={q.id}
                             type="button"
-                            className={`palette-btn ${paletteStatus(q)}${q.id === currentQuestion?.id ? ' current' : ''}`}
+                            className={`palette-btn rounded-lg border border-[var(--line)] bg-white text-[var(--ink)] py-1.5 px-0 ${paletteStatus(q)}${q.id === currentQuestion?.id ? ' current' : ''}`}
                             onClick={() => {
                               if (activeSection && activeSection !== q.section) {
                                 setActiveSection(q.section);
@@ -1053,12 +1055,12 @@ export default function ExamPage({ token, testId, setMessage }) {
           )}
 
           {sections.length === 0 && (
-            <div className="palette-grid">
+            <div className="grid grid-cols-6 gap-1.5">
               {filteredQuestions.map((q, index) => (
                 <button
                   key={q.id}
                   type="button"
-                  className={`palette-btn ${paletteStatus(q)}${q.id === currentQuestion?.id ? ' current' : ''}`}
+                  className={`palette-btn rounded-lg border border-[var(--line)] bg-white text-[var(--ink)] py-1.5 px-0 ${paletteStatus(q)}${q.id === currentQuestion?.id ? ' current' : ''}`}
                   onClick={() => jumpToQuestion(index)}
                 >
                   {index + 1}
@@ -1067,15 +1069,15 @@ export default function ExamPage({ token, testId, setMessage }) {
             </div>
           )}
 
-          <div className="legend">
-            <span><i className="dot answered" /> Answered</span>
-            <span><i className="dot answered-marked" /> Ans + Review</span>
-            <span><i className="dot marked" /> Marked</span>
-            <span><i className="dot visited" /> Visited</span>
-            <span><i className="dot not-visited" /> Not Visited</span>
+          <div className="mt-3 grid gap-1.5">
+            <span><i className="dot answered w-2 h-2 rounded-full inline-block mr-1.5" /> Answered</span>
+            <span><i className="dot answered-marked w-2 h-2 rounded-full inline-block mr-1.5" /> Ans + Review</span>
+            <span><i className="dot marked w-2 h-2 rounded-full inline-block mr-1.5" /> Marked</span>
+            <span><i className="dot visited w-2 h-2 rounded-full inline-block mr-1.5" /> Visited</span>
+            <span><i className="dot not-visited w-2 h-2 rounded-full inline-block mr-1.5" /> Not Visited</span>
           </div>
 
-          <div className="palette-counts">
+          <div className="mt-2.5 grid grid-cols-2 gap-1 text-xs text-[var(--muted)]">
             <span>{counts.answered} answered</span>
             <span>{counts.notAnswered} visited</span>
             <span>{counts.markedForReview} review</span>
@@ -1089,13 +1091,13 @@ export default function ExamPage({ token, testId, setMessage }) {
 
       {/* Floating scratchpad */}
       {showScratchpad && (
-        <div className="scratchpad-panel">
-          <div className="calc-header">
+        <div className="fixed bottom-6 left-6 w-[300px] bg-white border border-[var(--line)] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.18)] z-[8888] overflow-hidden flex flex-col">
+          <div className="bg-[#1e293b] text-white flex justify-between items-center px-[0.7rem] py-[0.45rem] font-bold text-[0.88rem]">
             <span>Rough Work</span>
-            <button type="button" className="calc-close" onClick={() => setShowScratchpad(false)}>✕</button>
+            <button type="button" className="bg-transparent border-none text-white p-0 cursor-pointer text-base leading-none" onClick={() => setShowScratchpad(false)}>✕</button>
           </div>
           <textarea
-            className="scratchpad-area"
+            className="w-full h-[200px] resize-none border-none rounded-none p-[0.7rem] text-[0.9rem] bg-[var(--card)] text-[var(--ink)]"
             value={scratchpad}
             onChange={(e) => setScratchpad(e.target.value)}
             placeholder="Use this space for rough work. Not saved."
@@ -1114,11 +1116,11 @@ export default function ExamPage({ token, testId, setMessage }) {
 
       {/* Offline submit alert */}
       {showOfflineAlert && (
-        <div className="modal-backdrop">
-          <div className="modal-box">
+        <div className="fixed inset-0 bg-black/45 flex items-center justify-center z-[9999]">
+          <div className="bg-white border border-[var(--line)] rounded-2xl p-5 w-[min(440px,92vw)] shadow-[0_24px_60px_rgba(0,0,0,0.2)]">
             <h3>⚠️ No Internet Connection</h3>
             <p>Your answers are saved locally. Please connect to the internet and try submitting again.</p>
-            <div className="button-row" style={{ justifyContent: 'flex-end' }}>
+            <div className="flex gap-2" style={{ justifyContent: 'flex-end' }}>
               <button type="button" className="secondary" onClick={() => setShowOfflineAlert(false)}>
                 Close
               </button>

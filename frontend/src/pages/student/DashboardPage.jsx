@@ -72,44 +72,44 @@ export default function DashboardPage({ token, setMessage }) {
   }
 
   return (
-    <section className="dashboard-outer">
+    <section className="grid gap-4">
       {/* Performance snapshot */}
       {summary && (
-        <article className="card dashboard-snapshot">
+        <article className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)]">
           <h3>📊 Performance Snapshot</h3>
-          <div className="stats-grid">
-            <div className="stat-card compact">
-              <p>Tests Taken</p>
-              <h4>{summary.totalAttempts ?? 0}</h4>
+          <div className="grid grid-cols-4 gap-2.5">
+            <div className="border border-[var(--line)] rounded-xl p-2.5 bg-white">
+              <p className="m-0 text-[var(--muted)] text-[0.82rem]">Tests Taken</p>
+              <h4 className="text-[1.12rem] mt-1 mb-0">{summary.totalAttempts ?? 0}</h4>
             </div>
-            <div className="stat-card compact">
-              <p>Avg Score</p>
-              <h4>{summary.averageScore ?? 0}</h4>
+            <div className="border border-[var(--line)] rounded-xl p-2.5 bg-white">
+              <p className="m-0 text-[var(--muted)] text-[0.82rem]">Avg Score</p>
+              <h4 className="text-[1.12rem] mt-1 mb-0">{summary.averageScore ?? 0}</h4>
             </div>
-            <div className="stat-card compact">
-              <p>Accuracy</p>
-              <h4>{summary.accuracy ?? 0}%</h4>
+            <div className="border border-[var(--line)] rounded-xl p-2.5 bg-white">
+              <p className="m-0 text-[var(--muted)] text-[0.82rem]">Accuracy</p>
+              <h4 className="text-[1.12rem] mt-1 mb-0">{summary.accuracy ?? 0}%</h4>
             </div>
-            <div className="stat-card compact">
-              <p>Best Score</p>
-              <h4>{summary.bestScore ?? 0}</h4>
+            <div className="border border-[var(--line)] rounded-xl p-2.5 bg-white">
+              <p className="m-0 text-[var(--muted)] text-[0.82rem]">Best Score</p>
+              <h4 className="text-[1.12rem] mt-1 mb-0">{summary.bestScore ?? 0}</h4>
             </div>
           </div>
           {(summary.strongSubjects?.length > 0 || summary.weakSubjects?.length > 0) && (
-            <div className="subject-bands">
+            <div className="flex gap-3 flex-wrap mt-3">
               {summary.strongSubjects?.length > 0 && (
-                <div className="subject-band strong">
+                <div className="flex items-center gap-1.5 flex-wrap text-sm font-semibold text-[#14833b]">
                   <span>💪 Strong: </span>
                   {summary.strongSubjects.map((s) => (
-                    <span key={s} className="tag-pill">{s}</span>
+                    <span key={s} className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{s}</span>
                   ))}
                 </div>
               )}
               {summary.weakSubjects?.length > 0 && (
-                <div className="subject-band weak">
+                <div className="flex items-center gap-1.5 flex-wrap text-sm font-semibold text-[#bf3131]">
                   <span>📉 Weak: </span>
                   {summary.weakSubjects.map((s) => (
-                    <span key={s} className="tag-pill">{s}</span>
+                    <span key={s} className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{s}</span>
                   ))}
                 </div>
               )}
@@ -118,33 +118,33 @@ export default function DashboardPage({ token, setMessage }) {
         </article>
       )}
 
-      <section className="dashboard-layout">
+      <section className="grid grid-cols-[420px_1fr] gap-4">
         {/* Available tests */}
-        <article className="card panel-left">
-          <div className="panel-heading">
+        <article className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)] min-h-[70vh]">
+          <div className="flex items-center justify-between gap-2 mb-1">
             <h2>📋 Available Tests</h2>
-            <span className="panel-count">{tests.length} test{tests.length !== 1 ? 's' : ''}</span>
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[var(--card-soft)] text-[var(--muted)] border border-[var(--line)]">{tests.length} test{tests.length !== 1 ? 's' : ''}</span>
           </div>
-          <p className="muted">Start active tests in dedicated exam tabs.</p>
-          <div className="stack">
+          <p className="text-[var(--muted)] m-0">Start active tests in dedicated exam tabs.</p>
+          <div className="grid gap-3">
             {tests.length === 0 && (
-              <div className="empty-state">
-                <p className="muted">No currently active approved tests.</p>
+              <div className="border border-dashed border-[var(--line)] rounded-xl p-6 text-center">
+                <p className="text-[var(--muted)] m-0">No currently active approved tests.</p>
               </div>
             )}
             {tests.map((test) => (
-              <div className="test-list-item" key={test._id}>
+              <div className="border border-[var(--line)] rounded-xl p-2.5 flex items-start justify-between gap-3" key={test._id}>
                 <div style={{ flex: 1 }}>
                   <strong>{test.title}</strong>
-                  <div className="tags">
+                  <div className="flex gap-1.5 flex-wrap mt-1">
                     {test.category && (
-                      <span className={`tag-cat ${CATEGORY_COLOR[test.category] || ''}`}>
+                      <span className={`border border-[var(--line)] rounded-full px-1.5 py-0.5 text-xs bg-[var(--card-soft)] ${CATEGORY_COLOR[test.category] || ''}`}>
                         {CATEGORY_LABEL[test.category] || test.category}
                       </span>
                     )}
                     {test.difficultyLevel && <span>{test.difficultyLevel}</span>}
                   </div>
-                  <p className="small">
+                  <p className="mt-1 text-[var(--muted)] text-sm">
                     ⏱ {test.durationMinutes} min &middot; {test.totalMarks} marks &middot;{' '}
                     {test.questions?.length || 0} questions
                   </p>
@@ -173,16 +173,16 @@ export default function DashboardPage({ token, setMessage }) {
           {/* Recommendations */}
           {recommendations.length > 0 && (
             <div style={{ marginTop: '1.4rem' }}>
-              <div className="panel-heading">
+              <div className="flex items-center justify-between gap-2 mb-1">
                 <h3>🎯 Recommended Practice</h3>
               </div>
-              <p className="muted small">Based on your weak areas</p>
-              <div className="stack">
+              <p className="text-[var(--muted)] m-0 mt-1 text-sm">Based on your weak areas</p>
+              <div className="grid gap-3">
                 {recommendations.map((test) => (
-                  <div className="test-list-item" key={test._id}>
+                  <div className="border border-[var(--line)] rounded-xl p-2.5 flex items-start justify-between gap-3" key={test._id}>
                     <div style={{ flex: 1 }}>
                       <strong>{test.title}</strong>
-                      <p className="small">⏱ {test.durationMinutes} min · {test.totalMarks} marks</p>
+                      <p className="mt-1 text-[var(--muted)] text-sm">⏱ {test.durationMinutes} min · {test.totalMarks} marks</p>
                     </div>
                     <button type="button" onClick={() => openTest(test._id)}>▶ Start</button>
                   </div>
@@ -193,11 +193,11 @@ export default function DashboardPage({ token, setMessage }) {
         </article>
 
         {/* Report navigation */}
-        <article className="card panel-right">
-          <div className="panel-heading">
+        <article className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)] min-h-[70vh]">
+          <div className="flex items-center justify-between gap-2 mb-1">
             <h2>📈 Reports & Analysis</h2>
           </div>
-          <p className="muted">Open every analysis section in separate browser tabs.</p>
+          <p className="text-[var(--muted)] m-0">Open every analysis section in separate browser tabs.</p>
 
           <label>
             Select Attempt For Reports
@@ -215,36 +215,36 @@ export default function DashboardPage({ token, setMessage }) {
             </select>
           </label>
 
-          <div className="report-nav-grid">
-            <button type="button" className="report-nav-btn" onClick={() => openReport('score', 'current')}>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button type="button" className="report-nav-btn bg-[var(--card-soft)] text-[var(--ink)] border-[var(--line)] text-left font-semibold" onClick={() => openReport('score', 'current')}>
               📊 Score Card
             </button>
-            <button type="button" className="report-nav-btn" onClick={() => openReport('subject', 'new')}>
+            <button type="button" className="report-nav-btn bg-[var(--card-soft)] text-[var(--ink)] border-[var(--line)] text-left font-semibold" onClick={() => openReport('subject', 'new')}>
               📚 Subject Report
             </button>
-            <button type="button" className="report-nav-btn" onClick={() => openReport('solution', 'new')}>
+            <button type="button" className="report-nav-btn bg-[var(--card-soft)] text-[var(--ink)] border-[var(--line)] text-left font-semibold" onClick={() => openReport('solution', 'new')}>
               ✅ Solutions
             </button>
-            <button type="button" className="report-nav-btn" onClick={() => openReport('question', 'new')}>
+            <button type="button" className="report-nav-btn bg-[var(--card-soft)] text-[var(--ink)] border-[var(--line)] text-left font-semibold" onClick={() => openReport('question', 'new')}>
               🔍 Question Analysis
             </button>
-            <button type="button" className="report-nav-btn" onClick={() => openReport('compare', 'new')}>
+            <button type="button" className="report-nav-btn bg-[var(--card-soft)] text-[var(--ink)] border-[var(--line)] text-left font-semibold" onClick={() => openReport('compare', 'new')}>
               📈 Compare Yourself
             </button>
           </div>
 
           {selectedAttempt && (
-            <div className="summary-inline">
+            <div className="mt-3 border border-[var(--line)] rounded-xl p-2.5 grid grid-cols-3 gap-2.5">
               <div>
-                <small>Score</small>
+                <small className="block text-[var(--muted)]">Score</small>
                 <strong>{selectedAttempt.score}</strong>
               </div>
               <div>
-                <small>Total Marks</small>
+                <small className="block text-[var(--muted)]">Total Marks</small>
                 <strong>{selectedAttempt.test?.totalMarks || '-'}</strong>
               </div>
               <div>
-                <small>Submitted</small>
+                <small className="block text-[var(--muted)]">Submitted</small>
                 <strong>{formatDateTime(selectedAttempt.submittedAt)}</strong>
               </div>
             </div>
@@ -254,14 +254,14 @@ export default function DashboardPage({ token, setMessage }) {
           {attempts.length > 0 && (
             <div style={{ marginTop: '1rem' }}>
               <h3>🕒 Attempt History</h3>
-              <div className="stack">
+              <div className="grid gap-3">
                 {attempts.map((attempt) => (
-                  <div className="attempt-history-item" key={attempt._id}>
+                  <div className="border border-[var(--line)] rounded-xl px-3 py-2.5 flex items-center justify-between gap-3" key={attempt._id}>
                     <div>
                       <strong>{attempt.test?.title}</strong>
-                      <p className="small">{formatDateTime(attempt.submittedAt)}</p>
+                      <p className="mt-1 text-[var(--muted)] text-sm">{formatDateTime(attempt.submittedAt)}</p>
                     </div>
-                    <div className="attempt-score-badge">
+                    <div className="font-bold text-[0.9rem] text-[var(--accent)]">
                       {attempt.score} / {attempt.test?.totalMarks || '?'}
                     </div>
                   </div>

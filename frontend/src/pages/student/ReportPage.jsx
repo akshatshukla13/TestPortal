@@ -63,7 +63,7 @@ export default function ReportPage({ token, tab, initialTestId, setMessage }) {
 
   function renderTabContent() {
     if (!analysis) {
-      return <div className="card"><p className="muted">Loading analysis...</p></div>;
+      return <div className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)]"><p className="text-[var(--muted)] m-0">Loading analysis...</p></div>;
     }
 
     if (tab === 'subject') return <SubjectReportPage analysis={analysis} />;

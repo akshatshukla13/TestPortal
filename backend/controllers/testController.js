@@ -64,6 +64,7 @@ function evaluateQuestionScore(question, answerEntry) {
   const partialPositive = Number(question.marks?.partialPositive || 0);
 
   if (question.type === 'NAT') {
+    if (answerEntry.numericAnswer === null || answerEntry.numericAnswer === undefined) return 0;
     const expected = Number(question.numerical?.answer);
     const tolerance = Number(question.numerical?.tolerance || 0);
     const provided = Number(answerEntry.numericAnswer);

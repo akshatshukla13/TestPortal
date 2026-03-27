@@ -99,7 +99,7 @@ function NavItem({ item, routePage }) {
   );
 }
 
-export default function StudentLayout({ routePage, user, onLogout, onToggleTheme, theme, children }) {
+export default function StudentLayout({ routePage, user, onLogout, children }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -151,14 +151,6 @@ export default function StudentLayout({ routePage, user, onLogout, onToggleTheme
           onClick={() => goTo('/announcements')}
         >
           ❓
-        </button>
-        <button
-          type="button"
-          className="secondary text-[1.1rem] px-[0.55rem] py-[0.38rem] rounded-full"
-          title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-          onClick={onToggleTheme}
-        >
-          {theme === 'light' ? '🌙' : '☀️'}
         </button>
 
         {/* User avatar dropdown */}

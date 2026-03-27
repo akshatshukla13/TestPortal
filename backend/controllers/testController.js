@@ -125,17 +125,44 @@ export async function getAvailableTests(req, res, next) {
 export async function getMyAttempts(req, res, next) {
   try {
     const attempts = await Attempt.find({ user: req.user._id, status: 'submitted' })
-      .populate('test', 'title totalMarks durationMinutes tags startTime endTime category difficultyLevel')
+      .populate('test', 'title totalMarks durationMinutes tags startTime endTime category difficultyLevel questions')
       .sort({ submittedAt: -1 });
 
     res.json({
-      attempts: attempts.map((attempt) => ({
-        _id: attempt._id,
-        test: attempt.test,
-        score: attempt.score,
-        submittedAt: attempt.submittedAt,
-        durationSeconds: attempt.durationSeconds || 0,
-      })),
+      attempts: attempts.map((attempt) => {
+        const answerMap = getAnswerMap(attempt.answers || []);
+        let correct = 0;
+        let incorrect = 0;
+        let unattempted = 0;
+
+        for (const q of attempt.test?.questions || []) {
+          const answer = answerMap.get(String(q.id));
+          const hasAnswer =
+            answer &&
+            (Boolean(answer.selectedOptionId) ||
+              Boolean((answer.selectedOptionIds || []).length) ||
+              (answer.numericAnswer !== null && answer.numericAnswer !== undefined));
+
+          if (!hasAnswer) {
+            unattempted += 1;
+          } else {
+            const marks = evaluateQuestionScore(q, answer);
+            if (marks > 0) correct += 1;
+            else incorrect += 1;
+          }
+        }
+
+        return {
+          _id: attempt._id,
+          test: attempt.test,
+          score: attempt.score,
+          submittedAt: attempt.submittedAt,
+          durationSeconds: attempt.durationSeconds || 0,
+          correct,
+          incorrect,
+          unattempted,
+        };
+      }),
     });
   } catch (error) {
     next(error);

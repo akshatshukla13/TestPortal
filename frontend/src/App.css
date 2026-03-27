@@ -85,16 +85,70 @@ button:disabled {
   color: var(--ink);
 }
 
-/* ── Dynamic active states ──────────────────────────────────────────────── */
+/* ── Sidebar menu item ──────────────────────────────────────────────────── */
+.menu-item {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 0.52rem 0.75rem;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.menu-item:hover {
+  background: var(--card-soft);
+  border-color: var(--line);
+}
+
 .menu-item.active {
   background: #2740c8;
   color: #fff;
   border-color: #2740c8;
 }
 
+[data-theme='dark'] .menu-item {
+  color: var(--ink);
+}
+
+[data-theme='dark'] .menu-item:hover {
+  background: var(--card-soft);
+}
+
+/* ── Navbar icon buttons ────────────────────────────────────────────────── */
+nav button.secondary {
+  transition: background 0.15s;
+}
+
+/* ── Tab buttons ────────────────────────────────────────────────────────── */
+.tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.38rem 0.82rem;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.75);
+}
+
 .tab-btn.active {
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
+}
+
+.section-tab {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.38rem 0.82rem;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  color: var(--ink);
 }
 
 .section-tab.active {
@@ -318,3 +372,4 @@ button:disabled {
 [data-theme='dark'] .report-nav-btn:hover {
   background: #2d3748;
 }
+

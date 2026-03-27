@@ -11,6 +11,11 @@ export function parseRoute() {
     return { page: 'report', tab: p1 || 'score', testId: p2 || '' };
   }
 
+  const knownPages = ['bookmarks', 'documents', 'video', 'current-affairs', 'announcements'];
+  if (knownPages.includes(page)) {
+    return { page };
+  }
+
   return { page: 'dashboard' };
 }
 

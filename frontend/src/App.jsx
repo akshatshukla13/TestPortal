@@ -9,6 +9,11 @@ import DashboardPage from './pages/student/DashboardPage';
 import ExamPage from './pages/student/ExamPage';
 import ReportPage from './pages/student/ReportPage';
 import AdminPage from './pages/admin/AdminPage';
+import BookmarksPage from './pages/student/BookmarksPage';
+import DocumentsPage from './pages/student/DocumentsPage';
+import VideoPage from './pages/student/VideoPage';
+import CurrentAffairsPage from './pages/student/CurrentAffairsPage';
+import AnnouncementsPage from './pages/student/AnnouncementsPage';
 
 function App() {
   const [auth, setAuth] = useState(() => readAuth());
@@ -70,91 +75,83 @@ function App() {
     setMessage('Logged out.');
   }
 
+  function renderStudentPage() {
+    if (route.page === 'test') {
+      return <ExamPage token={auth.token} testId={route.testId} setMessage={setMessage} />;
+    }
+    if (route.page === 'report') {
+      return (
+        <ReportPage
+          token={auth.token}
+          tab={route.tab}
+          initialTestId={route.testId}
+          setMessage={setMessage}
+        />
+      );
+    }
+    if (route.page === 'bookmarks') return <BookmarksPage token={auth.token} />;
+    if (route.page === 'documents') return <DocumentsPage />;
+    if (route.page === 'video') return <VideoPage />;
+    if (route.page === 'current-affairs') return <CurrentAffairsPage />;
+    if (route.page === 'announcements') return <AnnouncementsPage />;
+    return <DashboardPage token={auth.token} setMessage={setMessage} />;
+  }
+
   function renderContent() {
     if (!auth.token) {
       return (
-        <AuthPanel
-          authMode={authMode}
-          authForm={authForm}
-          loading={loading}
-          onMode={setAuthMode}
-          onChange={(key, value) => setAuthForm((prev) => ({ ...prev, [key]: value }))}
-          onSubmit={handleAuthSubmit}
-        />
+        <main className="w-[min(1600px,95vw)] mx-auto py-5 px-0">
+          {message && (
+            <p className="mb-4 px-3.5 py-3 rounded-xl border border-[var(--line)] bg-white" role="alert">
+              {message}
+            </p>
+          )}
+          <AuthPanel
+            authMode={authMode}
+            authForm={authForm}
+            loading={loading}
+            onMode={setAuthMode}
+            onChange={(key, value) => setAuthForm((prev) => ({ ...prev, [key]: value }))}
+            onSubmit={handleAuthSubmit}
+          />
+        </main>
       );
     }
 
     if (isAdmin) {
-      return <AdminPage token={auth.token} setMessage={setMessage} />;
-    }
-
-    if (route.page === 'test') {
       return (
-        <StudentLayout routePage={route.page}>
-          <ExamPage token={auth.token} testId={route.testId} setMessage={setMessage} />
-        </StudentLayout>
-      );
-    }
-
-    if (route.page === 'report') {
-      return (
-        <StudentLayout routePage={route.page}>
-          <ReportPage
-            token={auth.token}
-            tab={route.tab}
-            initialTestId={route.testId}
-            setMessage={setMessage}
-          />
-        </StudentLayout>
+        <main className="w-[min(1600px,95vw)] mx-auto py-5 px-0">
+          {message && (
+            <p className="mb-4 px-3.5 py-3 rounded-xl border border-[var(--line)] bg-white" role="alert">
+              {message}
+            </p>
+          )}
+          <AdminPage token={auth.token} setMessage={setMessage} />
+        </main>
       );
     }
 
     return (
-      <StudentLayout routePage={route.page}>
-        <DashboardPage token={auth.token} setMessage={setMessage} />
-      </StudentLayout>
+      <>
+        <StudentLayout
+          routePage={route.page}
+          user={auth.user}
+          onLogout={logout}
+          onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
+          theme={theme}
+        >
+          {message && (
+            <p className="mb-4 px-3.5 py-3 rounded-xl border border-[var(--line)] bg-white" role="alert">
+              {message}
+            </p>
+          )}
+          {renderStudentPage()}
+        </StudentLayout>
+      </>
     );
   }
 
-  return (
-    <main className="w-[min(1600px,95vw)] mx-auto py-5 px-0">
-      <header className="flex justify-between items-start gap-4 mb-4">
-        <div className="flex items-center gap-3">
-          <span className="text-[1.8rem] leading-none">🎓</span>
-          <div>
-            <p className="m-0 text-[var(--muted)] tracking-[0.12em] uppercase text-[0.76rem]">GATE EXAM MOCK PORTAL</p>
-            <h1>{auth.user ? `${auth.user.name}'s Workspace` : 'Exam Forge'}</h1>
-          </div>
-        </div>
-        <div className="flex gap-2.5 items-center">
-          <button
-            type="button"
-            className="secondary text-[1.1rem] px-[0.6rem] py-[0.4rem] rounded-full"
-            title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
-            onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
-          >
-            {theme === 'light' ? '🌙' : '☀️'}
-          </button>
-          {auth.user && (
-            <>
-              <span className="inline-flex items-center rounded-full border border-[var(--line)] px-2 py-0.5 text-xs bg-white">{auth.user.role.toUpperCase()}</span>
-              <span className="text-xs text-[var(--muted)] max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">{auth.user.email}</span>
-              <button type="button" className="secondary" onClick={logout}>
-                Logout
-              </button>
-            </>
-          )}
-        </div>
-      </header>
-
-      {message && (
-        <p className="mb-4 px-3.5 py-3 rounded-xl border border-[var(--line)] bg-white" role="alert">
-          {message}
-        </p>
-      )}
-      {renderContent()}
-    </main>
-  );
+  return renderContent();
 }
 
 export default App;

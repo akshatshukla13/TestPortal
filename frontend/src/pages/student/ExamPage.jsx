@@ -225,6 +225,10 @@ export default function ExamPage({ token, testId, setMessage }) {
   const answersRef = useRef({});
   const questionStatesRef = useRef({});
   const questionTimesRef = useRef({});
+  // Refs for auto-save metadata to avoid resetting the timer on every navigation
+  const activeQuestionIdRef = useRef(null);
+  const activeSectionRef = useRef(null);
+  const antiCheatRef = useRef({});
 
   const [antiCheat, setAntiCheat] = useState({
     fullScreenExitCount: 0,
@@ -324,7 +328,9 @@ export default function ExamPage({ token, testId, setMessage }) {
         selectedOptionId: a.selectedOptionId || null,
         selectedOptionIds: a.selectedOptionIds || [],
         numericAnswer:
-          a.numericAnswer !== undefined && a.numericAnswer !== '' ? Number(a.numericAnswer) : null,
+          a.numericAnswer !== undefined && a.numericAnswer !== null && a.numericAnswer !== ''
+            ? Number(a.numericAnswer)
+            : null,
         visited: Boolean(s.visited),
         markedForReview: Boolean(s.markedForReview),
       };
@@ -332,6 +338,13 @@ export default function ExamPage({ token, testId, setMessage }) {
   }
 
   // ── auto-save ─────────────────────────────────────────────────────────────
+
+  // Keep refs in sync so doAutoSave doesn't need them as deps (avoids timer reset on navigation)
+  useEffect(() => {
+    activeQuestionIdRef.current = currentQuestion?.id || null;
+    activeSectionRef.current = activeSection;
+    antiCheatRef.current = antiCheat;
+  }, [currentQuestion, activeSection, antiCheat]);
 
   const doAutoSave = useCallback(
     async (currentAnswers, currentStates, currentTimes) => {
@@ -353,16 +366,16 @@ export default function ExamPage({ token, testId, setMessage }) {
         await api.saveTestSession(token, test._id, {
           answers: buildAnswersList(currentAnswers, currentStates),
           questionTimes: currentTimes,
-          activeQuestionId: currentQuestion?.id || null,
-          activeSection,
-          antiCheat,
+          activeQuestionId: activeQuestionIdRef.current,
+          activeSection: activeSectionRef.current,
+          antiCheat: antiCheatRef.current,
         });
       } catch {
         // best-effort
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [token, test, testId, endAt, currentQuestion, activeSection, antiCheat],
+    [token, test, testId, endAt],
   );
 
   // ── load / init ───────────────────────────────────────────────────────────

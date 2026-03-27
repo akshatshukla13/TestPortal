@@ -12,14 +12,22 @@ function saveBookmarks(bookmarks) {
   localStorage.setItem('bookmarked-questions', JSON.stringify(bookmarks));
 }
 
+function isAttempted(item) {
+  return (
+    Boolean(item.selectedOptionId) ||
+    Boolean((item.selectedOptionIds || []).length) ||
+    (item.numericAnswer !== null && item.numericAnswer !== undefined)
+  );
+}
+
 function paletteBtnClass(item, index, currentIndex) {
-  const status = item.isCorrect ? 'sol-correct' : item.selectedOptionId ? 'sol-incorrect' : 'sol-skipped';
+  const status = item.isCorrect ? 'sol-correct' : isAttempted(item) ? 'sol-incorrect' : 'sol-skipped';
   const current = index === currentIndex ? 'sol-current' : '';
   return ['sol-palette-btn', status, current].filter(Boolean).join(' ');
 }
 
 function statusBadgeClass(q) {
-  const status = q.isCorrect ? 'sol-correct' : q.selectedOptionId ? 'sol-incorrect' : 'sol-skipped';
+  const status = q.isCorrect ? 'sol-correct' : isAttempted(q) ? 'sol-incorrect' : 'sol-skipped';
   return ['sol-status-badge', status].join(' ');
 }
 
@@ -66,7 +74,7 @@ export default function SolutionReportPage({ analysis }) {
             type="button"
             className={paletteBtnClass(item, index, currentIndex)}
             onClick={() => jumpTo(index)}
-            title={`Q${index + 1}: ${item.isCorrect ? 'Correct' : item.selectedOptionId ? 'Incorrect' : 'Skipped'}`}
+            title={`Q${index + 1}: ${item.isCorrect ? 'Correct' : isAttempted(item) ? 'Incorrect' : 'Skipped'}`}
           >
             {index + 1}
           </button>
@@ -87,7 +95,7 @@ export default function SolutionReportPage({ analysis }) {
               {bookmarks[q.questionId] ? '🔖' : '☆'}
             </button>
             <span className={`${statusBadgeClass(q)} inline-flex items-center rounded-full py-[0.22rem] px-[0.7rem] text-[0.82rem] font-bold border border-transparent`}>
-              {q.isCorrect ? '✓ Correct' : q.selectedOptionId ? '✗ Incorrect' : '— Skipped'}
+              {q.isCorrect ? '✓ Correct' : isAttempted(q) ? '✗ Incorrect' : '— Skipped'}
             </span>
           </div>
         </div>
@@ -98,26 +106,46 @@ export default function SolutionReportPage({ analysis }) {
         )}
 
         <div className="grid gap-2">
-          {q.options.map((option) => {
-            const isCorrect = option.id === q.correctOptionId;
-            const isSelected = option.id === q.selectedOptionId;
-            let cls = 'sol-option flex items-start gap-2 border border-[var(--line)] rounded-xl px-3 py-2 bg-white text-[0.95rem]';
-            if (isCorrect) cls += ' sol-opt-correct';
-            else if (isSelected && !isCorrect) cls += ' sol-opt-wrong';
-            return (
-              <div key={option.id} className={cls}>
-                <span className="font-bold flex-shrink-0 min-w-[1.4rem]">{option.id}.</span>
-                <span>{option.text}</span>
-                {isCorrect && <span className="ml-auto text-xs font-bold px-[0.4rem] py-[0.1rem] rounded-full whitespace-nowrap bg-[#dcfce7] text-[#14532d]">✓ Correct</span>}
-                {isSelected && !isCorrect && <span className="ml-auto text-xs font-bold px-[0.4rem] py-[0.1rem] rounded-full whitespace-nowrap bg-[#fee2e2] text-[#7f1d1d]">✗ Your Answer</span>}
-              </div>
-            );
-          })}
+          {q.type === 'NAT' ? null : (
+            q.options.map((option) => {
+              const isCorrect = q.type === 'MSQ'
+                ? (q.correctOptionIds || []).includes(option.id)
+                : option.id === q.correctOptionId;
+              const isSelected = q.type === 'MSQ'
+                ? (q.selectedOptionIds || []).includes(option.id)
+                : option.id === q.selectedOptionId;
+              let cls = 'sol-option flex items-start gap-2 border border-[var(--line)] rounded-xl px-3 py-2 bg-white text-[0.95rem]';
+              if (isCorrect) cls += ' sol-opt-correct';
+              else if (isSelected) cls += ' sol-opt-wrong';
+              return (
+                <div key={option.id} className={cls}>
+                  <span className="font-bold flex-shrink-0 min-w-[1.4rem]">{option.id}.</span>
+                  <span>{option.text}</span>
+                  {isCorrect && <span className="ml-auto text-xs font-bold px-[0.4rem] py-[0.1rem] rounded-full whitespace-nowrap bg-[#dcfce7] text-[#14532d]">✓ Correct</span>}
+                  {isSelected && !isCorrect && <span className="ml-auto text-xs font-bold px-[0.4rem] py-[0.1rem] rounded-full whitespace-nowrap bg-[#fee2e2] text-[#7f1d1d]">✗ Your Answer</span>}
+                </div>
+              );
+            })
+          )}
         </div>
 
         <div className="flex gap-4 flex-wrap text-sm p-2.5 bg-[var(--card-soft)] rounded-xl border border-[var(--line)]">
-          <span>Your Answer: <strong>{q.selectedOptionId || '—'}</strong></span>
-          <span>Correct Answer: <strong>{q.correctOptionId || '—'}</strong></span>
+          {q.type === 'NAT' ? (
+            <>
+              <span>Your Answer: <strong>{q.numericAnswer !== null && q.numericAnswer !== undefined ? q.numericAnswer : '—'}</strong></span>
+              <span>Correct Answer: <strong>{q.correctNumericalAnswer !== null && q.correctNumericalAnswer !== undefined ? q.correctNumericalAnswer : '—'}</strong></span>
+            </>
+          ) : q.type === 'MSQ' ? (
+            <>
+              <span>Your Answer: <strong>{(q.selectedOptionIds || []).length ? q.selectedOptionIds.join(', ') : '—'}</strong></span>
+              <span>Correct Answer: <strong>{(q.correctOptionIds || []).length ? q.correctOptionIds.join(', ') : '—'}</strong></span>
+            </>
+          ) : (
+            <>
+              <span>Your Answer: <strong>{q.selectedOptionId || '—'}</strong></span>
+              <span>Correct Answer: <strong>{q.correctOptionId || '—'}</strong></span>
+            </>
+          )}
           <span>Marks: <strong className={q.marksAwarded >= 0 ? 'good' : 'bad'}>{q.marksAwarded >= 0 ? `+${q.marksAwarded}` : q.marksAwarded}</strong></span>
         </div>
 

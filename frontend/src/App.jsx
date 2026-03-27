@@ -27,18 +27,12 @@ function App() {
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   const isAdmin = auth.user?.role === 'admin';
 
   useEffect(() => {
     writeAuth(auth);
   }, [auth]);
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-  }, [theme]);
 
   useEffect(() => {
     function onHashChange() {
@@ -76,9 +70,6 @@ function App() {
   }
 
   function renderStudentPage() {
-    if (route.page === 'test') {
-      return <ExamPage token={auth.token} testId={route.testId} setMessage={setMessage} />;
-    }
     if (route.page === 'report') {
       return (
         <ReportPage
@@ -131,14 +122,16 @@ function App() {
       );
     }
 
+    if (route.page === 'test') {
+      return <ExamPage token={auth.token} testId={route.testId} setMessage={setMessage} />;
+    }
+
     return (
       <>
         <StudentLayout
           routePage={route.page}
           user={auth.user}
           onLogout={logout}
-          onToggleTheme={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}
-          theme={theme}
         >
           {message && (
             <p className="mb-4 px-3.5 py-3 rounded-xl border border-[var(--line)] bg-white" role="alert">

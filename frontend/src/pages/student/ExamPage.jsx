@@ -218,6 +218,7 @@ export default function ExamPage({ token, testId, setMessage }) {
   const [showCalc, setShowCalc] = useState(false);
   const [showScratchpad, setShowScratchpad] = useState(false);
   const [scratchpad, setScratchpad] = useState('');
+  const [showStartDialog, setShowStartDialog] = useState(true);
 
   const autoSaveTimer = useRef(null);
   // Refs to track latest state for submit (avoids stale closure issues)
@@ -366,10 +367,10 @@ export default function ExamPage({ token, testId, setMessage }) {
 
   // ── load / init ───────────────────────────────────────────────────────────
 
-  useEffect(() => {
+  function handleStartConfirm() {
+    setShowStartDialog(false);
     loadTest();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [testId]);
+  }
 
   async function loadTest() {
     try {
@@ -804,6 +805,30 @@ export default function ExamPage({ token, testId, setMessage }) {
   }
 
   // ── loading / submitted ───────────────────────────────────────────────────
+
+  if (showStartDialog) {
+    return (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">
+        <div className="bg-white border border-[var(--line)] rounded-2xl p-8 w-[min(480px,92vw)] shadow-[0_24px_60px_rgba(0,0,0,0.25)] text-center">
+          <div className="text-5xl mb-4">📝</div>
+          <h2 className="mb-2">Ready to Start the Test?</h2>
+          <p className="text-[var(--muted)] m-0 mb-6">
+            The test will open in <strong>fullscreen mode</strong>. Do not switch tabs or
+            navigate away during the test — violations are tracked and may lead to
+            auto-submission.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <button type="button" className="secondary" onClick={() => window.close()}>
+              Cancel
+            </button>
+            <button type="button" onClick={handleStartConfirm}>
+              OK, Start Test
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!test) {
     return (

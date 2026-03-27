@@ -1,5 +1,17 @@
 import { useState } from 'react';
 
+function getBookmarks() {
+  try {
+    return JSON.parse(localStorage.getItem('bookmarked-questions') || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function saveBookmarks(bookmarks) {
+  localStorage.setItem('bookmarked-questions', JSON.stringify(bookmarks));
+}
+
 function paletteBtnClass(item, index, currentIndex) {
   const status = item.isCorrect ? 'sol-correct' : item.selectedOptionId ? 'sol-incorrect' : 'sol-skipped';
   const current = index === currentIndex ? 'sol-current' : '';
@@ -14,6 +26,17 @@ function statusBadgeClass(q) {
 export default function SolutionReportPage({ analysis }) {
   const questions = analysis.questionAnalysis;
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [bookmarks, setBookmarks] = useState(getBookmarks);
+
+  function toggleBookmark(qId) {
+    setBookmarks((prev) => {
+      const next = { ...prev };
+      if (next[qId]) delete next[qId];
+      else next[qId] = true;
+      saveBookmarks(next);
+      return next;
+    });
+  }
 
   if (!questions.length) {
     return <p className="text-[var(--muted)] m-0">No question data available.</p>;
@@ -54,9 +77,19 @@ export default function SolutionReportPage({ analysis }) {
       <article className="border border-[var(--line)] rounded-xl p-2.5 grid gap-3.5">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <span className="inline-flex items-center rounded-full border border-[var(--line)] px-2 py-0.5 text-xs bg-white">Question {currentIndex + 1} / {questions.length}</span>
-          <span className={`${statusBadgeClass(q)} inline-flex items-center rounded-full py-[0.22rem] px-[0.7rem] text-[0.82rem] font-bold border border-transparent`}>
-            {q.isCorrect ? '✓ Correct' : q.selectedOptionId ? '✗ Incorrect' : '— Skipped'}
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              title={bookmarks[q.questionId] ? 'Remove bookmark' : 'Add bookmark'}
+              className={`secondary px-2.5 py-1.5 rounded-xl text-base${bookmarks[q.questionId] ? ' bg-amber-50 border-amber-300 text-amber-600' : ''}`}
+              onClick={() => toggleBookmark(q.questionId)}
+            >
+              {bookmarks[q.questionId] ? '🔖' : '☆'}
+            </button>
+            <span className={`${statusBadgeClass(q)} inline-flex items-center rounded-full py-[0.22rem] px-[0.7rem] text-[0.82rem] font-bold border border-transparent`}>
+              {q.isCorrect ? '✓ Correct' : q.selectedOptionId ? '✗ Incorrect' : '— Skipped'}
+            </span>
+          </div>
         </div>
 
         <p className="text-[1.05rem] leading-[1.7] m-0 whitespace-pre-wrap">{q.questionText}</p>

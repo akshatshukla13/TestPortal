@@ -27,48 +27,6 @@
   -webkit-font-smoothing: antialiased;
 }
 
-[data-theme='dark'] {
-  --bg: #111827;
-  --ink: #f0f4f8;
-  --muted: #94a3b8;
-  --line: #2d3748;
-  --card: #1e2a3a;
-  --card-soft: #243040;
-  --accent: #10b981;
-
-  color: var(--ink);
-  background:
-    radial-gradient(circle at 0% 0%, #0d2b22 0, transparent 44%),
-    radial-gradient(circle at 100% 20%, #0d1f3c 0, transparent 40%),
-    var(--bg);
-}
-
-[data-theme='dark'] .card,
-[data-theme='dark'] .flash,
-[data-theme='dark'] input,
-[data-theme='dark'] select,
-[data-theme='dark'] textarea {
-  background: var(--card);
-  border-color: var(--line);
-  color: var(--ink);
-}
-
-[data-theme='dark'] button.secondary {
-  background: var(--card-soft);
-  color: var(--ink);
-  border-color: var(--line);
-}
-
-[data-theme='dark'] .pill {
-  background: var(--card-soft);
-  border-color: var(--line);
-  color: var(--ink);
-}
-
-[data-theme='dark'] .tags span {
-  background: var(--card-soft);
-}
-
 * {
   box-sizing: border-box;
 }

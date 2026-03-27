@@ -677,6 +677,8 @@ export async function getMyAnalysis(req, res, next) {
         numericAnswer: answer?.numericAnswer ?? null,
         correctOptionId: correctOptionIds[0] || null,
         correctOptionIds,
+        correctNumericalAnswer: q.type === 'NAT' ? (q.numerical?.answer ?? null) : null,
+        numericalTolerance: q.type === 'NAT' ? (q.numerical?.tolerance ?? 0) : null,
         options: (q.options || []).map((opt) => ({ id: opt.id, text: opt.text, image: opt.image })),
         solution: {
           text: q.solution?.text || '',

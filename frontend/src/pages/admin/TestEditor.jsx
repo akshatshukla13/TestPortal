@@ -241,7 +241,7 @@ function SettingsTab({ token, setMessage, test, onSaved }) {
     endTime: test.endTime ? new Date(test.endTime).toISOString().slice(0, 16) : '',
     tags: Array.isArray(test.tags) ? test.tags.join(', ') : (test.tags || ''),
     isApproved: test.isApproved || false,
-    sectionSwitchAllowed: test.settings?.sectionSwitchAllowed || false,
+    sectionSwitchingAllowed: test.settings?.sectionSwitchingAllowed ?? true,
     enableFullscreen: test.settings?.enableFullscreen || false,
     trackTabSwitch: test.settings?.trackTabSwitch || false,
     disableCopyPaste: test.settings?.disableCopyPaste || false,
@@ -267,7 +267,7 @@ function SettingsTab({ token, setMessage, test, onSaved }) {
         tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
         isApproved: form.isApproved,
         settings: {
-          sectionSwitchAllowed: form.sectionSwitchAllowed,
+          sectionSwitchingAllowed: form.sectionSwitchingAllowed,
           enableFullscreen: form.enableFullscreen,
           trackTabSwitch: form.trackTabSwitch,
           disableCopyPaste: form.disableCopyPaste,
@@ -381,7 +381,7 @@ function SettingsTab({ token, setMessage, test, onSaved }) {
         {advancedOpen && (
           <div className="p-4 grid gap-2 border-t border-[var(--line)]">
             {[
-              ['sectionSwitchAllowed', 'Allow section switching'],
+              ['sectionSwitchingAllowed', 'Allow section switching'],
               ['enableFullscreen', 'Enable fullscreen'],
               ['trackTabSwitch', 'Track tab switches'],
               ['disableCopyPaste', 'Disable copy/paste'],
@@ -508,7 +508,7 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
   async function handleCopyFromTest() {
     if (!selectedCopyIds.length) { setMessage('Select questions first.'); return; }
     try {
-      await api.copyQuestions(token, test._id, { sourceTestId: copyFromTestId, questionIds: selectedCopyIds });
+      await api.copyQuestions(token, test._id, { fromTestId: copyFromTestId, questionIds: selectedCopyIds });
       setMessage('Questions copied.');
       setSelectedCopyIds([]);
       setMode(null);
@@ -624,13 +624,13 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
           {copyFromTest && (
             <div className="grid gap-2 mt-3" style={{ maxHeight: 400, overflowY: 'auto' }}>
               {(copyFromTest.questions || []).map((q, idx) => (
-                <label key={q._id} className="flex items-start gap-2 border border-[var(--line)] rounded-xl p-2.5 cursor-pointer" style={{ fontWeight: 400 }}>
+                <label key={q.id || idx} className="flex items-start gap-2 border border-[var(--line)] rounded-xl p-2.5 cursor-pointer" style={{ fontWeight: 400 }}>
                   <input
                     type="checkbox"
-                    checked={selectedCopyIds.includes(q._id)}
+                    checked={selectedCopyIds.includes(q.id)}
                     onChange={() =>
                       setSelectedCopyIds((prev) =>
-                        prev.includes(q._id) ? prev.filter((x) => x !== q._id) : [...prev, q._id],
+                        prev.includes(q.id) ? prev.filter((x) => x !== q.id) : [...prev, q.id],
                       )
                     }
                   />
@@ -662,7 +662,7 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
           <div className="grid gap-2">
             {questions.map((q, idx) => (
               <div
-                key={q._id}
+                key={q.id || idx}
                 className="flex items-start gap-3 border border-[var(--line)] rounded-xl p-2.5"
               >
                 <span className="text-sm font-semibold text-[var(--muted)] mt-0.5 min-w-[1.5rem]">

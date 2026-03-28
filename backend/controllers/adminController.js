@@ -1,4 +1,7 @@
 import Test from '../models/Test.js';
+import User from '../models/User.js';
+
+const DEFAULT_TEST_DURATION_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 function parseQuestion(question, index) {
   return {
@@ -38,6 +41,7 @@ export async function createTest(req, res, next) {
   try {
     const {
       title,
+      description = '',
       tags = [],
       durationMinutes,
       totalMarks,
@@ -45,23 +49,31 @@ export async function createTest(req, res, next) {
       endTime,
       isApproved = false,
       questions = [],
+      category,
+      difficultyLevel,
+      settings,
     } = req.body;
 
-    if (!title || !durationMinutes || !totalMarks || !startTime || !endTime) {
+    if (!title || !durationMinutes || !totalMarks) {
       res.status(400);
       throw new Error('Missing required test fields');
     }
 
+    const now = new Date();
     const test = await Test.create({
       title,
+      description,
       tags,
       durationMinutes: Number(durationMinutes),
       totalMarks: Number(totalMarks),
-      startTime: new Date(startTime),
-      endTime: new Date(endTime),
+      startTime: startTime ? new Date(startTime) : now,
+      endTime: endTime ? new Date(endTime) : new Date(now.getTime() + DEFAULT_TEST_DURATION_MS),
       isApproved: Boolean(isApproved),
       createdBy: req.user._id,
       questions: questions.map((q, i) => parseQuestion(q, i)),
+      ...(category ? { category } : {}),
+      ...(difficultyLevel ? { difficultyLevel } : {}),
+      ...(settings ? { settings } : {}),
     });
 
     res.status(201).json({ test });
@@ -183,6 +195,235 @@ export async function uploadImage(req, res, next) {
     res.json({
       imageDataUrl: `data:${mimeType};base64,${base64}`,
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getDashboardStats(req, res, next) {
+  try {
+    const now = new Date();
+    const allTests = await Test.find().lean();
+
+    const totalTests = allTests.length;
+    const activeTests = allTests.filter(
+      (t) => t.isApproved && t.startTime <= now && t.endTime >= now
+    ).length;
+    const upcomingTests = allTests.filter(
+      (t) => t.isApproved && t.startTime > now
+    ).length;
+    const expiredTests = allTests.filter((t) => t.endTime < now).length;
+    const inactiveTests = allTests.filter((t) => !t.isApproved).length;
+    const totalQuestions = allTests.reduce((sum, t) => sum + (t.questions?.length || 0), 0);
+
+    const totalUsers = await User.countDocuments({ role: 'student' });
+
+    const recentTests = await Test.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('_id title isApproved startTime endTime questions')
+      .lean();
+
+    res.json({
+      totalTests,
+      activeTests,
+      inactiveTests,
+      upcomingTests,
+      expiredTests,
+      totalQuestions,
+      totalUsers,
+      recentTests: recentTests.map((t) => ({
+        id: t._id,
+        title: t.title,
+        isApproved: t.isApproved,
+        startTime: t.startTime,
+        endTime: t.endTime,
+        questionCount: t.questions?.length || 0,
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateTest(req, res, next) {
+  try {
+    const allowed = [
+      'title', 'description', 'tags', 'durationMinutes', 'totalMarks',
+      'startTime', 'endTime', 'isApproved', 'category', 'difficultyLevel', 'settings',
+    ];
+
+    const updates = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        if (key === 'startTime' || key === 'endTime') {
+          updates[key] = new Date(req.body[key]);
+        } else {
+          updates[key] = req.body[key];
+        }
+      }
+    }
+
+    const test = await Test.findByIdAndUpdate(req.params.testId, updates, { new: true, runValidators: true });
+    if (!test) {
+      res.status(404);
+      throw new Error('Test not found');
+    }
+
+    res.json({ test });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteTest(req, res, next) {
+  try {
+    const test = await Test.findByIdAndDelete(req.params.testId);
+    if (!test) {
+      res.status(404);
+      throw new Error('Test not found');
+    }
+
+    res.json({ message: 'Test deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function duplicateTest(req, res, next) {
+  try {
+    const source = await Test.findById(req.params.testId).lean();
+    if (!source) {
+      res.status(404);
+      throw new Error('Test not found');
+    }
+
+    const { _id, createdAt, updatedAt, ...rest } = source;
+    const now = new Date();
+    const copy = await Test.create({
+      ...rest,
+      title: `${source.title} (Copy)`,
+      isApproved: false,
+      createdBy: req.user._id,
+      createdAt: undefined,
+      updatedAt: undefined,
+      startTime: now,
+      endTime: new Date(now.getTime() + DEFAULT_TEST_DURATION_MS),
+    });
+
+    res.status(201).json({ test: copy });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteQuestion(req, res, next) {
+  try {
+    const test = await Test.findById(req.params.testId);
+    if (!test) {
+      res.status(404);
+      throw new Error('Test not found');
+    }
+
+    const { questionId } = req.params;
+    const index = test.questions.findIndex((q) => String(q.id) === questionId);
+    if (index === -1) {
+      res.status(404);
+      throw new Error('Question not found');
+    }
+
+    test.questions.splice(index, 1);
+    await test.save();
+
+    res.json({ test });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateQuestion(req, res, next) {
+  try {
+    const test = await Test.findById(req.params.testId);
+    if (!test) {
+      res.status(404);
+      throw new Error('Test not found');
+    }
+
+    const { questionId } = req.params;
+    const index = test.questions.findIndex((q) => String(q.id) === questionId);
+    if (index === -1) {
+      res.status(404);
+      throw new Error('Question not found');
+    }
+
+    test.questions[index] = parseQuestion({ ...req.body, id: questionId }, index);
+    await test.save();
+
+    res.json({ test });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function listUsers(req, res, next) {
+  try {
+    const users = await User.find({ role: 'student' })
+      .sort({ createdAt: -1 })
+      .select('_id name email targetExam isSuspended createdAt')
+      .lean();
+
+    res.json({ users });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function assignUsers(req, res, next) {
+  try {
+    const { userIds = [], mode = 'replace' } = req.body;
+
+    const test = await Test.findById(req.params.testId);
+    if (!test) {
+      res.status(404);
+      throw new Error('Test not found');
+    }
+
+    if (mode === 'replace') {
+      test.allowedUsers = userIds;
+    } else if (mode === 'add') {
+      const existing = test.allowedUsers.map(String);
+      for (const id of userIds) {
+        if (!existing.includes(String(id))) {
+          test.allowedUsers.push(id);
+        }
+      }
+    } else if (mode === 'remove') {
+      const removeSet = new Set(userIds.map(String));
+      test.allowedUsers = test.allowedUsers.filter((id) => !removeSet.has(String(id)));
+    } else {
+      res.status(400);
+      throw new Error('Invalid mode. Must be replace, add, or remove');
+    }
+
+    await test.save();
+    res.json({ test });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getAssignedUsers(req, res, next) {
+  try {
+    const test = await Test.findById(req.params.testId)
+      .populate('allowedUsers', '_id name email')
+      .lean();
+
+    if (!test) {
+      res.status(404);
+      throw new Error('Test not found');
+    }
+
+    res.json({ users: test.allowedUsers });
   } catch (error) {
     next(error);
   }

@@ -9,7 +9,7 @@ function makeDefaultNewTest() {
   const now = Date.now();
   return {
     title: '',
-    tags: '',
+    tags: 'gate, cs, mock',
     durationMinutes: 180,
     totalMarks: 100,
     category: 'full-mock',

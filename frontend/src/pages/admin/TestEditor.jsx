@@ -471,7 +471,7 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
 
   async function handleUpdateQuestion(draft) {
     try {
-      await api.updateQuestion(token, test._id, editingQuestion._id, draft);
+      await api.updateQuestion(token, test._id, editingQuestion.id, draft);
       setMessage('Question updated.');
       setMode(null);
       setEditingQuestion(null);
@@ -694,7 +694,7 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
                     type="button"
                     className="secondary"
                     style={{ color: '#dc2626' }}
-                    onClick={() => handleDeleteQuestion(q._id)}
+                    onClick={() => handleDeleteQuestion(q.id)}
                   >
                     🗑
                   </button>

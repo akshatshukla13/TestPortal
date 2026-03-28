@@ -356,7 +356,7 @@ export async function updateQuestion(req, res, next) {
       throw new Error('Question not found');
     }
 
-    test.questions[index] = parseQuestion({ ...req.body, id: questionId }, index);
+    test.questions[index] = parseQuestion({ ...(req.body.question || req.body), id: questionId }, index);
     await test.save();
 
     res.json({ test });

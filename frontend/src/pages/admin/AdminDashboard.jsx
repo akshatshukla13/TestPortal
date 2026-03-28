@@ -89,7 +89,7 @@ export default function AdminDashboard({ token, setMessage, onNavigate }) {
                 {recentTests.map((test) => {
                   const status = getTestStatus(test);
                   return (
-                    <tr key={test.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                    <tr key={test._id || test.id} style={{ borderBottom: '1px solid var(--line)' }}>
                       <td style={{ padding: '0.5rem 0.75rem', fontWeight: 500 }}>{test.title}</td>
                       <td style={{ padding: '0.5rem 0.75rem' }}>
                         <span

@@ -12,8 +12,50 @@ function canResumeOrSubmit(test, attempt) {
   return attempt.status === 'in_progress' && attempt.startedAt <= test.endTime;
 }
 
+function parseNumericAnswer(answerLike) {
+  const rawValue =
+    answerLike?.numericAnswer ??
+    answerLike?.numericalAnswer ??
+    answerLike?.natAnswer ??
+    null;
+
+  if (rawValue === null || rawValue === undefined || rawValue === '') {
+    return null;
+  }
+
+  const parsed = Number(rawValue);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeAnswerEntry(answerLike = {}) {
+  return {
+    questionId: String(answerLike.questionId),
+    selectedOptionId: answerLike.selectedOptionId ? String(answerLike.selectedOptionId) : null,
+    selectedOptionIds: (answerLike.selectedOptionIds || []).map(String),
+    numericAnswer: parseNumericAnswer(answerLike),
+    visited: Boolean(answerLike.visited),
+    markedForReview: Boolean(answerLike.markedForReview),
+  };
+}
+
+function hasAttemptedAnswer(answerLike) {
+  const normalized = normalizeAnswerEntry(answerLike);
+  return (
+    Boolean(normalized.selectedOptionId) ||
+    Boolean((normalized.selectedOptionIds || []).length) ||
+    normalized.numericAnswer !== null
+  );
+}
+
 function getAnswerMap(answers = []) {
-  return new Map(answers.map((a) => [String(a.questionId), a]));
+  return new Map(
+    answers
+      .filter((a) => a && a.questionId !== undefined && a.questionId !== null)
+      .map((a) => {
+        const normalized = normalizeAnswerEntry(a);
+        return [String(normalized.questionId), normalized];
+      })
+  );
 }
 
 function sanitizeQuestionForStudent(q) {
@@ -414,17 +456,7 @@ export async function saveTestProgress(req, res, next) {
     } = req.body;
 
     if (Array.isArray(answers)) {
-      attempt.answers = answers.map((a) => ({
-        questionId: String(a.questionId),
-        selectedOptionId: a.selectedOptionId ? String(a.selectedOptionId) : null,
-        selectedOptionIds: (a.selectedOptionIds || []).map(String),
-        numericAnswer:
-          a.numericAnswer === null || a.numericAnswer === undefined || a.numericAnswer === ''
-            ? null
-            : Number(a.numericAnswer),
-        visited: Boolean(a.visited),
-        markedForReview: Boolean(a.markedForReview),
-      }));
+      attempt.answers = answers.map(normalizeAnswerEntry);
     }
 
     attempt.questionTimes = questionTimes || {};
@@ -481,17 +513,7 @@ export async function submitTest(req, res, next) {
       throw new Error('Test is not currently available for submission');
     }
 
-    const normalizedAnswers = answers.map((a) => ({
-      questionId: String(a.questionId),
-      selectedOptionId: a.selectedOptionId ? String(a.selectedOptionId) : null,
-      selectedOptionIds: (a.selectedOptionIds || []).map(String),
-      numericAnswer:
-        a.numericAnswer === null || a.numericAnswer === undefined || a.numericAnswer === ''
-          ? null
-          : Number(a.numericAnswer),
-      visited: Boolean(a.visited),
-      markedForReview: Boolean(a.markedForReview),
-    }));
+    const normalizedAnswers = answers.map(normalizeAnswerEntry);
 
     const answerMap = getAnswerMap(normalizedAnswers);
 
@@ -583,12 +605,7 @@ export async function getMyAnalysis(req, res, next) {
 
     for (const eachAttempt of allAttempts) {
       const eachAnswerMap = getAnswerMap(eachAttempt.answers || []);
-      const attemptedCount = (eachAttempt.answers || []).filter((a) => {
-        if (a.selectedOptionId) return true;
-        if ((a.selectedOptionIds || []).length) return true;
-        if (a.numericAnswer !== null && a.numericAnswer !== undefined) return true;
-        return false;
-      }).length;
+      const attemptedCount = (eachAttempt.answers || []).filter(hasAttemptedAnswer).length;
 
       const fallbackPerQuestionTime = attemptedCount
         ? Number(eachAttempt.durationSeconds || 0) / attemptedCount
@@ -697,12 +714,7 @@ export async function getMyAnalysis(req, res, next) {
                   Number(topperAttempt.durationSeconds || 0) /
                   Math.max(
                     1,
-                    topperAttempt.answers.filter((a) => {
-                      if (a.selectedOptionId) return true;
-                      if ((a.selectedOptionIds || []).length) return true;
-                      if (a.numericAnswer !== null && a.numericAnswer !== undefined) return true;
-                      return false;
-                    }).length
+                    topperAttempt.answers.filter(hasAttemptedAnswer).length
                   )
                 ).toFixed(2)
               )

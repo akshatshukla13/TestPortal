@@ -424,7 +424,10 @@ export default function ExamPage({ token, testId, setMessage }) {
           restoredAnswers[a.questionId] = {
             selectedOptionId: a.selectedOptionId || null,
             selectedOptionIds: a.selectedOptionIds || [],
-            numericAnswer: a.numericAnswer !== null ? String(a.numericAnswer) : '',
+            numericAnswer:
+              a.numericAnswer !== null && a.numericAnswer !== undefined
+                ? String(a.numericAnswer)
+                : '',
           };
           restoredStates[a.questionId] = {
             visited: Boolean(a.visited),

@@ -20,7 +20,7 @@ const NAV_ITEMS = [
     path: '/dashboard',
     expandable: true,
     children: [
-      { key: 'chem', label: 'Chemical Engineering', path: '/dashboard' },
+      // { key: 'chem', label: 'Chemical Engineering', path: '/dashboard' },
       { key: 'comp', label: 'Computer Engineering', path: '/dashboard' },
     ],
   },

@@ -102,13 +102,7 @@ export default function TestDashboard({ token, setMessage }) {
 
   return (
     <div className="grid gap-4">
-      <PageHeader
-        title="My Tests"
-        subtitle="Track active, upcoming, missed, and completed assessments."
-        right={
-          <button type="button" className="secondary" onClick={() => goTo("/report")}>View Reports</button>
-        }
-      />
+    
 
       <Card className="p-2.5">
         <div className="flex flex-wrap gap-2">

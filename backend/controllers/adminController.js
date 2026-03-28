@@ -3,7 +3,15 @@ import User from '../models/User.js';
 
 const DEFAULT_TEST_DURATION_MS = 4 * 60 * 60 * 1000; // 4 hours
 
+function toNumberOr(value, fallback = null) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function parseQuestion(question, index) {
+  const type = question.type || 'MCQ';
+
   return {
     id: String(question.id ?? index + 1),
     question: {
@@ -21,10 +29,23 @@ function parseQuestion(question, index) {
       image: question?.solution?.image || null,
     },
     marks: {
-      total: Number(question?.marks?.total || 1),
-      negative: Number(question?.marks?.negative || 0),
+      total: toNumberOr(question?.marks?.total, 1),
+      negative: toNumberOr(question?.marks?.negative, 0),
+      partialPositive: toNumberOr(question?.marks?.partialPositive, 0),
     },
-    type: question.type || 'MCQ',
+    type,
+    numerical: {
+      // Keep NAT values from either modern or legacy payload shapes.
+      answer: toNumberOr(question?.numerical?.answer ?? question?.numericalAnswer, null),
+      tolerance: toNumberOr(question?.numerical?.tolerance, 0),
+      min: toNumberOr(question?.numerical?.min, null),
+      max: toNumberOr(question?.numerical?.max, null),
+    },
+    subject: question?.subject || 'General',
+    topic: question?.topic || 'Mixed',
+    difficulty: question?.difficulty || 'Beginner',
+    section: question?.section || 'Core',
+    explanationVideoUrl: question?.explanationVideoUrl || '',
   };
 }
 

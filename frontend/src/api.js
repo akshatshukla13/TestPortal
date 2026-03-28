@@ -1,7 +1,38 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-async function request(path, { method = 'GET', token, body, isFormData = false } = {}) {
+const responseCache = new Map();
+const inFlightRequests = new Map();
+
+async function request(
+  path,
+  {
+    method = 'GET',
+    token,
+    body,
+    isFormData = false,
+    cache = false,
+    cacheTtlMs = 15000,
+    cacheKey,
+    forceRefresh = false,
+  } = {},
+) {
   const headers = {};
+  const normalizedMethod = method.toUpperCase();
+  const canUseCache = cache && normalizedMethod === 'GET';
+  const resolvedCacheKey =
+    canUseCache && (cacheKey || `${normalizedMethod}:${path}:${token || ''}`);
+
+  if (canUseCache && !forceRefresh) {
+    const cached = responseCache.get(resolvedCacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
+    const inFlight = inFlightRequests.get(resolvedCacheKey);
+    if (inFlight) {
+      return inFlight;
+    }
+  }
 
   if (!isFormData) {
     headers['Content-Type'] = 'application/json';
@@ -11,30 +42,56 @@ async function request(path, { method = 'GET', token, body, isFormData = false }
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
-  });
+  const fetchPromise = (async () => {
+    const response = await fetch(`${API_BASE}${path}`, {
+      method: normalizedMethod,
+      headers,
+      body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
+    });
 
-  const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch(() => ({}));
 
-  if (!response.ok) {
-    throw new Error(data.message || 'Request failed');
+    if (!response.ok) {
+      throw new Error(data.message || 'Request failed');
+    }
+
+    if (canUseCache) {
+      responseCache.set(resolvedCacheKey, {
+        data,
+        expiresAt: Date.now() + cacheTtlMs,
+      });
+    }
+
+    return data;
+  })();
+
+  if (canUseCache) {
+    inFlightRequests.set(resolvedCacheKey, fetchPromise);
   }
 
-  return data;
+  try {
+    return await fetchPromise;
+  } finally {
+    if (canUseCache) {
+      inFlightRequests.delete(resolvedCacheKey);
+    }
+  }
 }
 
-export const api = {
+const api = {
   signup: (payload) => request('/auth/signup', { method: 'POST', body: payload }),
   login: (payload) => request('/auth/login', { method: 'POST', body: payload }),
-  me: (token) => request('/auth/me', { token }),
+  me: (token, requestOptions = {}) =>
+    request('/auth/me', { cache: true, cacheTtlMs: 10000, ...requestOptions, token }),
 
-  getAvailableTests: (token) => request('/tests/available', { token }),
-  getMyAttempts: (token) => request('/tests/my/attempts', { token }),
-  getMySummary: (token) => request('/tests/my/summary', { token }),
-  getRecommendations: (token) => request('/tests/my/recommendations', { token }),
+  getAvailableTests: (token, requestOptions = {}) =>
+    request('/tests/available', { cache: true, cacheTtlMs: 20000, ...requestOptions, token }),
+  getMyAttempts: (token, requestOptions = {}) =>
+    request('/tests/my/attempts', { cache: true, cacheTtlMs: 20000, ...requestOptions, token }),
+  getMySummary: (token, requestOptions = {}) =>
+    request('/tests/my/summary', { cache: true, cacheTtlMs: 20000, ...requestOptions, token }),
+  getRecommendations: (token, requestOptions = {}) =>
+    request('/tests/my/recommendations', { cache: true, cacheTtlMs: 20000, ...requestOptions, token }),
   getTestById: (token, testId) => request(`/tests/${testId}`, { token }),
   startTestSession: (token, testId) =>
     request(`/tests/${testId}/session/start`, { method: 'POST', token }),
@@ -46,7 +103,8 @@ export const api = {
   getResult: (token, testId) => request(`/tests/${testId}/result`, { token }),
   getAnalysis: (token, testId) => request(`/tests/${testId}/analysis`, { token }),
 
-  getAllTests: (token) => request('/admin/tests', { token }),
+  getAllTests: (token, requestOptions = {}) =>
+    request('/admin/tests', { cache: true, cacheTtlMs: 30000, ...requestOptions, token }),
   createTest: (token, payload) => request('/admin/tests', { method: 'POST', token, body: payload }),
   updateApproval: (token, testId, isApproved) =>
     request(`/admin/tests/${testId}/approve`, { method: 'PATCH', token, body: { isApproved } }),
@@ -82,7 +140,8 @@ export const api = {
   deleteBankQuestion: (token, questionId) =>
     request(`/admin/question-bank/${questionId}`, { method: 'DELETE', token }),
 
-  getDashboardStats: (token) => request('/admin/dashboard', { token }),
+  getDashboardStats: (token, requestOptions = {}) =>
+    request('/admin/dashboard', { cache: true, cacheTtlMs: 30000, ...requestOptions, token }),
   updateTest: (token, testId, payload) => request(`/admin/tests/${testId}`, { method: 'PATCH', token, body: payload }),
   deleteTest: (token, testId) => request(`/admin/tests/${testId}`, { method: 'DELETE', token }),
   duplicateTest: (token, testId) => request(`/admin/tests/${testId}/duplicate`, { method: 'POST', token }),
@@ -92,3 +151,25 @@ export const api = {
   assignUsers: (token, testId, userIds, mode) => request(`/admin/tests/${testId}/assign-users`, { method: 'POST', token, body: { userIds, mode } }),
   getAssignedUsers: (token, testId) => request(`/admin/tests/${testId}/assigned-users`, { token }),
 };
+
+api.clearCache = (cacheKeyPrefix) => {
+  if (!cacheKeyPrefix) {
+    responseCache.clear();
+    inFlightRequests.clear();
+    return;
+  }
+
+  for (const key of responseCache.keys()) {
+    if (key.includes(cacheKeyPrefix)) {
+      responseCache.delete(key);
+    }
+  }
+
+  for (const key of inFlightRequests.keys()) {
+    if (key.includes(cacheKeyPrefix)) {
+      inFlightRequests.delete(key);
+    }
+  }
+};
+
+export { api };

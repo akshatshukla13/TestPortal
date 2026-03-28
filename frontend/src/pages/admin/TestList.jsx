@@ -19,23 +19,24 @@ const STATUS_STYLES = {
 
 const STATUS_FILTERS = ['All', 'active', 'inactive', 'upcoming', 'expired'];
 
-export default function TestList({ token, setMessage, onEditTest, onCreateNew }) {
+export default function TestList({ token, notifySuccess, notifyError, onEditTest, onCreateNew }) {
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [activeAction, setActiveAction] = useState({ type: null, testId: null });
 
-  const loadTests = useCallback(async () => {
+  const loadTests = useCallback(async ({ forceRefresh = false } = {}) => {
     setLoading(true);
     try {
-      const data = await api.getAllTests(token);
+      const data = await api.getAllTests(token, { forceRefresh });
       setTests(data.tests || []);
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to load tests.');
     } finally {
       setLoading(false);
     }
-  }, [token, setMessage]);
+  }, [token, notifyError]);
 
   useEffect(() => { loadTests(); }, [loadTests]);
 
@@ -50,24 +51,30 @@ export default function TestList({ token, setMessage, onEditTest, onCreateNew })
 
   async function handleDuplicate(e, testId) {
     e.stopPropagation();
+    setActiveAction({ type: 'duplicate', testId });
     try {
       await api.duplicateTest(token, testId);
-      setMessage('Test duplicated.');
-      loadTests();
+      notifySuccess('Test duplicated successfully.');
+      await loadTests({ forceRefresh: true });
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to duplicate test.');
+    } finally {
+      setActiveAction({ type: null, testId: null });
     }
   }
 
   async function handleDelete(e, testId) {
     e.stopPropagation();
     if (!window.confirm('Delete this test? This cannot be undone.')) return;
+    setActiveAction({ type: 'delete', testId });
     try {
       await api.deleteTest(token, testId);
-      setMessage('Test deleted.');
-      loadTests();
+      notifySuccess('Test deleted successfully.');
+      await loadTests({ forceRefresh: true });
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to delete test.');
+    } finally {
+      setActiveAction({ type: null, testId: null });
     }
   }
 
@@ -162,6 +169,7 @@ export default function TestList({ token, setMessage, onEditTest, onCreateNew })
                   <button
                     type="button"
                     className="secondary"
+                    disabled={activeAction.testId === test._id}
                     onClick={() => onEditTest(test._id)}
                   >
                     ✏️ Edit
@@ -169,17 +177,19 @@ export default function TestList({ token, setMessage, onEditTest, onCreateNew })
                   <button
                     type="button"
                     className="secondary"
+                    disabled={activeAction.testId === test._id}
                     onClick={(e) => handleDuplicate(e, test._id)}
                   >
-                    📋 Duplicate
+                    {activeAction.type === 'duplicate' && activeAction.testId === test._id ? 'Duplicating…' : '📋 Duplicate'}
                   </button>
                   <button
                     type="button"
                     className="secondary"
                     style={{ color: '#dc2626' }}
+                    disabled={activeAction.testId === test._id}
                     onClick={(e) => handleDelete(e, test._id)}
                   >
-                    🗑 Delete
+                    {activeAction.type === 'delete' && activeAction.testId === test._id ? 'Deleting…' : '🗑 Delete'}
                   </button>
                 </div>
               </div>

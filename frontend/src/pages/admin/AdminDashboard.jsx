@@ -17,25 +17,36 @@ const STATUS_STYLES = {
   expired:  { background: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca' },
 };
 
-export default function AdminDashboard({ token, setMessage, onNavigate }) {
+export default function AdminDashboard({ token, notifyError, notifySuccess, onNavigate }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadStats = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await api.getDashboardStats(token);
-      setStats(data);
-    } catch (err) {
-      setMessage(err.message);
-    } finally {
-      setLoading(false);
+  const loadStats = useCallback(async ({ background = false, forceRefresh = false } = {}) => {
+    if (background) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
     }
-  }, [token, setMessage]);
+
+    try {
+      const data = await api.getDashboardStats(token, { forceRefresh });
+      setStats(data);
+      if (background && forceRefresh) notifySuccess('Dashboard refreshed.');
+    } catch (err) {
+      notifyError(err?.message || 'Failed to load dashboard stats.');
+    } finally {
+      if (background) {
+        setRefreshing(false);
+      } else {
+        setLoading(false);
+      }
+    }
+  }, [token, notifyError, notifySuccess]);
 
   useEffect(() => { loadStats(); }, [loadStats]);
 
-  if (loading) return <p className="text-[var(--muted)]">Loading dashboard…</p>;
+  if (loading && !stats) return <p className="text-[var(--muted)]">Loading dashboard…</p>;
 
   const statCards = [
     { label: 'Total Tests', value: stats?.totalTests ?? 0 },
@@ -51,7 +62,18 @@ export default function AdminDashboard({ token, setMessage, onNavigate }) {
 
   return (
     <div className="grid gap-5">
-      <h2 className="m-0">Dashboard</h2>
+      <div className="flex items-center gap-3 flex-wrap">
+        <h2 className="m-0">Dashboard</h2>
+        <button
+          type="button"
+          className="secondary"
+          disabled={refreshing}
+          onClick={() => loadStats({ background: true, forceRefresh: true })}
+        >
+          Refresh
+        </button>
+        {refreshing && <span className="text-[var(--muted)] text-sm">Refreshing…</span>}
+      </div>
 
       {/* Stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0.75rem' }}>

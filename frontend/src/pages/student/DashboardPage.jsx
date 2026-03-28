@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
 import { openInNewTab, goTo } from "../../router";
 import Card from "../../components/ui/Card";
@@ -68,32 +68,67 @@ export default function TestDashboard({ token, setMessage }) {
   const [tests, setTests] = useState([]);
   const [completedAttempts, setCompletedAttempts] = useState([]);
   const [activeTab, setActiveTab] = useState("Active");
+  const [loadingTests, setLoadingTests] = useState(true);
+  const [loadingAttempts, setLoadingAttempts] = useState(true);
+  const [refreshingTests, setRefreshingTests] = useState(false);
+  const lastRefreshAtRef = useRef(0);
+
+  const loadTests = useCallback(async ({ background = false } = {}) => {
+    if (background) {
+      setRefreshingTests(true);
+    } else {
+      setLoadingTests(true);
+    }
+
+    try {
+      const res = await api.getAvailableTests(token);
+      const enriched = (res.tests || []).map((t) => ({
+        ...t,
+        status: getTestStatus(t),
+      }));
+      setTests(enriched);
+    } catch (error) {
+      setMessage?.(error.message || "Failed to load tests.");
+    } finally {
+      if (background) {
+        setRefreshingTests(false);
+      } else {
+        setLoadingTests(false);
+      }
+    }
+  }, [token, setMessage]);
+
+  const loadAttempts = useCallback(async () => {
+    setLoadingAttempts(true);
+    try {
+      const res = await api.getMyAttempts(token);
+      setCompletedAttempts(res.attempts || []);
+    } catch (error) {
+      setMessage?.(error.message || "Failed to load attempts.");
+    } finally {
+      setLoadingAttempts(false);
+    }
+  }, [token, setMessage]);
 
   useEffect(() => {
     let alive = true;
 
-    const loadTests = () => {
-      api.getAvailableTests(token)
-        .then((res) => {
-          if (!alive) return;
-          const enriched = (res.tests || []).map((t) => ({
-            ...t,
-            status: getTestStatus(t),
-          }));
-          setTests(enriched);
-        })
-        .catch(console.error);
-    };
+    async function loadInitialData() {
+      await Promise.all([loadTests(), loadAttempts()]);
+    }
 
-    loadTests();
+    loadInitialData();
 
     // Refresh status when user comes back from an exam tab.
     function handleFocusRefresh() {
-      loadTests();
+      const now = Date.now();
+      if (now - lastRefreshAtRef.current < 800) return;
+      lastRefreshAtRef.current = now;
+      if (alive) loadTests({ background: true });
     }
 
     function handleVisibilityRefresh() {
-      if (!document.hidden) loadTests();
+      if (!document.hidden) handleFocusRefresh();
     }
 
     window.addEventListener("focus", handleFocusRefresh);
@@ -104,13 +139,7 @@ export default function TestDashboard({ token, setMessage }) {
       window.removeEventListener("focus", handleFocusRefresh);
       document.removeEventListener("visibilitychange", handleVisibilityRefresh);
     };
-  }, [token]);
-
-  useEffect(() => {
-    api.getMyAttempts(token)
-      .then((res) => { setCompletedAttempts(res.attempts || []); })
-      .catch(console.error);
-  }, [token]);
+  }, [loadAttempts, loadTests]);
 
   function openTest(testId) {
     openInNewTab(`/test/${testId}`);
@@ -126,7 +155,15 @@ export default function TestDashboard({ token, setMessage }) {
 
   return (
     <div className="grid gap-4">
-    
+      {activeTab !== "Completed" && (loadingTests || refreshingTests) && (
+        <p className="text-[var(--muted)] m-0">
+          {loadingTests ? "Loading tests..." : "Refreshing tests..."}
+        </p>
+      )}
+
+      {activeTab === "Completed" && loadingAttempts && (
+        <p className="text-[var(--muted)] m-0">Loading completed tests...</p>
+      )}
 
       <Card className="p-2.5">
         <div className="flex flex-wrap gap-2">

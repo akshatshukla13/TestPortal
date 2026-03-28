@@ -20,9 +20,10 @@ const DEFAULT_BANK_Q = () => ({
   tags: '',
 });
 
-export default function QuestionBankPage({ token, setMessage, tests = [] }) {
+export default function QuestionBankPage({ token, notifySuccess, notifyError, tests = [], testsLoading = false }) {
   const [bankQuestions, setBankQuestions] = useState([]);
   const [bankTotal, setBankTotal] = useState(0);
+  const [bankLoading, setBankLoading] = useState(true);
   const [bankPage, setBankPage] = useState(1);
   const [bankFilter, setBankFilter] = useState({ subject: '', type: '', search: '', difficulty: '', tag: '' });
   const [bankDraft, setBankDraft] = useState(DEFAULT_BANK_Q);
@@ -30,8 +31,13 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
   const [bankFormOpen, setBankFormOpen] = useState(false);
   const [selectedBankIds, setSelectedBankIds] = useState([]);
   const [addToTestId, setAddToTestId] = useState('');
+  const [savingQuestion, setSavingQuestion] = useState(false);
+  const [deletingQuestionId, setDeletingQuestionId] = useState(null);
+  const [addingToTest, setAddingToTest] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const loadBank = useCallback(async () => {
+    setBankLoading(true);
     try {
       const params = { page: bankPage, limit: 30 };
       if (bankFilter.subject) params.subject = bankFilter.subject;
@@ -43,14 +49,17 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
       setBankQuestions(data.questions || []);
       setBankTotal(data.total || 0);
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to load question bank.');
+    } finally {
+      setBankLoading(false);
     }
-  }, [token, bankPage, bankFilter, setMessage]);
+  }, [token, bankPage, bankFilter, notifyError]);
 
   useEffect(() => { loadBank(); }, [loadBank]);
 
   async function saveBankQuestion(e) {
     e.preventDefault();
+    setSavingQuestion(true);
     try {
       const payload = {
         question: bankDraft.question,
@@ -72,40 +81,48 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
       };
       if (editingBankId) {
         await api.updateBankQuestion(token, editingBankId, payload);
-        setMessage('Question updated in bank.');
+        notifySuccess('Question updated in question bank.');
       } else {
         await api.createBankQuestion(token, payload);
-        setMessage('Question added to bank.');
+        notifySuccess('Question added to question bank.');
       }
       setBankDraft(DEFAULT_BANK_Q());
       setEditingBankId(null);
       setBankFormOpen(false);
-      loadBank();
+      await loadBank();
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to save question.');
+    } finally {
+      setSavingQuestion(false);
     }
   }
 
   async function deleteBankQuestion(id) {
     if (!window.confirm('Delete this question from bank?')) return;
+    setDeletingQuestionId(id);
     try {
       await api.deleteBankQuestion(token, id);
-      setMessage('Question deleted.');
-      loadBank();
+      notifySuccess('Question deleted from bank.');
+      await loadBank();
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to delete question.');
+    } finally {
+      setDeletingQuestionId(null);
     }
   }
 
   async function addSelectedToTest() {
-    if (!addToTestId) { setMessage('Select a test first.'); return; }
-    if (!selectedBankIds.length) { setMessage('Select at least one question.'); return; }
+    if (!addToTestId) { notifyError('Select a test first.'); return; }
+    if (!selectedBankIds.length) { notifyError('Select at least one question.'); return; }
+    setAddingToTest(true);
     try {
       const resp = await api.addBankQuestionsToTest(token, addToTestId, selectedBankIds);
-      setMessage(`Added ${resp.addedCount} question(s) to test.`);
+      notifySuccess(`Added ${resp.addedCount} question(s) to test.`);
       setSelectedBankIds([]);
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to add selected questions to test.');
+    } finally {
+      setAddingToTest(false);
     }
   }
 
@@ -141,6 +158,7 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
 
   async function uploadBankImage(file, target, index = 0) {
     if (!file) return;
+    setUploadingImage(true);
     try {
       const data = await api.uploadImage(token, file);
       setBankDraft((prev) => {
@@ -150,8 +168,11 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
         options[index] = { ...options[index], image: data.imageDataUrl };
         return { ...prev, options };
       });
+      notifySuccess('Image uploaded successfully.');
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Image upload failed.');
+    } finally {
+      setUploadingImage(false);
     }
   }
 
@@ -165,6 +186,7 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
         </div>
         <button
           type="button"
+          disabled={savingQuestion || addingToTest || uploadingImage}
           onClick={() => {
             setBankFormOpen((v) => !v);
             if (editingBankId) { setEditingBankId(null); setBankDraft(DEFAULT_BANK_Q()); }
@@ -217,7 +239,12 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
             </label>
             <label>
               Question Image
-              <input type="file" accept="image/*" onChange={(e) => uploadBankImage(e.target.files?.[0], 'question')} />
+              <input
+                type="file"
+                accept="image/*"
+                disabled={savingQuestion || uploadingImage}
+                onChange={(e) => uploadBankImage(e.target.files?.[0], 'question')}
+              />
             </label>
 
             {(bankDraft.type === 'MCQ' || bankDraft.type === 'MSQ') && (
@@ -235,7 +262,7 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
                         }}
                       />
                     </label>
-                    <input type="file" accept="image/*" onChange={(e) => uploadBankImage(e.target.files?.[0], 'option', i)} />
+                    <input type="file" accept="image/*" disabled={savingQuestion || uploadingImage} onChange={(e) => uploadBankImage(e.target.files?.[0], 'option', i)} />
                     <label className="flex items-center gap-2 font-semibold" style={{ fontWeight: 400 }}>
                       <input
                         type={bankDraft.type === 'MSQ' ? 'checkbox' : 'radio'}
@@ -311,8 +338,17 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
             </label>
 
             <div className="flex gap-2">
-              <button type="submit">{editingBankId ? 'Update Question' : 'Save to Bank'}</button>
-              <button type="button" className="secondary" onClick={() => { setBankDraft(DEFAULT_BANK_Q()); setEditingBankId(null); setBankFormOpen(false); }}>Cancel</button>
+              <button type="submit" disabled={savingQuestion || uploadingImage}>
+                {savingQuestion ? 'Saving…' : editingBankId ? 'Update Question' : 'Save to Bank'}
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                disabled={savingQuestion}
+                onClick={() => { setBankDraft(DEFAULT_BANK_Q()); setEditingBankId(null); setBankFormOpen(false); }}
+              >
+                Cancel
+              </button>
             </div>
           </form>
         </article>
@@ -325,14 +361,16 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
           <label>
             Add to test:
             <select value={addToTestId} onChange={(e) => setAddToTestId(e.target.value)}>
-              <option value="">-- Select Test --</option>
+              <option value="">{testsLoading ? 'Loading tests...' : '-- Select Test --'}</option>
               {tests.map((t) => (
                 <option key={t._id} value={t._id}>{t.title}</option>
               ))}
             </select>
           </label>
-          <button type="button" onClick={addSelectedToTest}>Add to Test</button>
-          <button type="button" className="secondary" onClick={() => setSelectedBankIds([])}>Clear</button>
+          <button type="button" onClick={addSelectedToTest} disabled={testsLoading || addingToTest}>
+            {addingToTest ? 'Adding…' : 'Add to Test'}
+          </button>
+          <button type="button" className="secondary" disabled={addingToTest} onClick={() => setSelectedBankIds([])}>Clear</button>
         </div>
       )}
 
@@ -381,17 +419,20 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
               placeholder="e.g. aptitude"
             />
           </label>
-          <button type="button" onClick={() => { setBankPage(1); loadBank(); }}>🔍 Search</button>
-          <button type="button" className="secondary" onClick={() => { setBankFilter({ subject: '', type: '', search: '', difficulty: '', tag: '' }); setBankPage(1); }}>Reset</button>
+          <button type="button" disabled={bankLoading} onClick={() => { setBankPage(1); loadBank(); }}>🔍 Search</button>
+          <button type="button" className="secondary" disabled={bankLoading} onClick={() => { setBankFilter({ subject: '', type: '', search: '', difficulty: '', tag: '' }); setBankPage(1); }}>Reset</button>
         </div>
       </div>
 
       {/* Question list */}
       <div className="grid gap-3">
-        {bankQuestions.length === 0 && (
+        {bankLoading && (
+          <p className="text-[var(--muted)] m-0">Loading question bank...</p>
+        )}
+        {!bankLoading && bankQuestions.length === 0 && (
           <p className="text-[var(--muted)] m-0">No questions found. Add some above.</p>
         )}
-        {bankQuestions.map((q) => (
+        {!bankLoading && bankQuestions.map((q) => (
           <div
             key={q._id}
             className={`bg-white border border-[var(--line)] rounded-2xl shadow-[0_16px_40px_rgba(21,29,43,0.08)] px-3.5 py-2.5${selectedBankIds.includes(q._id) ? ' bank-q-selected' : ''}`}
@@ -413,8 +454,16 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
             </div>
             <p className="m-0 text-sm text-[var(--ink)] line-clamp-2">{q.question?.text}</p>
             <div className="flex gap-2 mt-2">
-              <button type="button" className="secondary" onClick={() => startEditBank(q)}>✏️ Edit</button>
-              <button type="button" className="secondary" style={{ color: '#dc2626' }} onClick={() => deleteBankQuestion(q._id)}>🗑 Delete</button>
+              <button type="button" className="secondary" disabled={savingQuestion || deletingQuestionId === q._id} onClick={() => startEditBank(q)}>✏️ Edit</button>
+              <button
+                type="button"
+                className="secondary"
+                style={{ color: '#dc2626' }}
+                disabled={savingQuestion || deletingQuestionId === q._id}
+                onClick={() => deleteBankQuestion(q._id)}
+              >
+                {deletingQuestionId === q._id ? 'Deleting…' : '🗑 Delete'}
+              </button>
             </div>
           </div>
         ))}

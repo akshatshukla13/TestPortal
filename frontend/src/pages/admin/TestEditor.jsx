@@ -23,15 +23,17 @@ function StatusBadge({ status }) {
 
 // ── Question Form (reusable inline) ──────────────────────────────────────────
 
-function QuestionForm({ token, setMessage, initial, onSave, onCancel }) {
+function QuestionForm({ token, notifySuccess, notifyError, initial, onSave, onCancel, submitting }) {
   const [draft, setDraft] = useState(() => initial || buildDefaultQuestion());
   const [tagsText, setTagsText] = useState(() => {
     const source = initial || buildDefaultQuestion();
     return Array.isArray(source.tags) ? source.tags.join(', ') : '';
   });
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   async function uploadImage(file, target, index = 0) {
     if (!file) return;
+    setUploadingImage(true);
     try {
       const data = await api.uploadImage(token, file);
       setDraft((prev) => {
@@ -41,9 +43,11 @@ function QuestionForm({ token, setMessage, initial, onSave, onCancel }) {
         options[index] = { ...options[index], image: data.imageDataUrl };
         return { ...prev, options };
       });
-      setMessage('Image uploaded.');
+      notifySuccess('Image uploaded successfully.');
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Image upload failed.');
+    } finally {
+      setUploadingImage(false);
     }
   }
 
@@ -128,7 +132,12 @@ function QuestionForm({ token, setMessage, initial, onSave, onCancel }) {
       </label>
       <label>
         Question Image
-        <input type="file" accept="image/*" onChange={(e) => uploadImage(e.target.files?.[0], 'question')} />
+        <input
+          type="file"
+          accept="image/*"
+          disabled={submitting || uploadingImage}
+          onChange={(e) => uploadImage(e.target.files?.[0], 'question')}
+        />
       </label>
 
       {/* MCQ / MSQ options */}
@@ -150,6 +159,7 @@ function QuestionForm({ token, setMessage, initial, onSave, onCancel }) {
               <input
                 type="file"
                 accept="image/*"
+                disabled={submitting || uploadingImage}
                 onChange={(e) => uploadImage(e.target.files?.[0], 'option', i)}
               />
               <label className="flex items-center gap-2 font-semibold" style={{ fontWeight: 400 }}>
@@ -234,12 +244,19 @@ function QuestionForm({ token, setMessage, initial, onSave, onCancel }) {
       </label>
       <label>
         Solution Image
-        <input type="file" accept="image/*" onChange={(e) => uploadImage(e.target.files?.[0], 'solution')} />
+        <input
+          type="file"
+          accept="image/*"
+          disabled={submitting || uploadingImage}
+          onChange={(e) => uploadImage(e.target.files?.[0], 'solution')}
+        />
       </label>
 
       <div className="flex gap-2">
-        <button type="submit">Save Question</button>
-        <button type="button" className="secondary" onClick={onCancel}>Cancel</button>
+        <button type="submit" disabled={submitting || uploadingImage}>
+          {submitting ? 'Saving…' : 'Save Question'}
+        </button>
+        <button type="button" className="secondary" disabled={submitting} onClick={onCancel}>Cancel</button>
       </div>
     </form>
   );
@@ -247,7 +264,7 @@ function QuestionForm({ token, setMessage, initial, onSave, onCancel }) {
 
 // ── Settings Tab ─────────────────────────────────────────────────────────────
 
-function SettingsTab({ token, setMessage, test, onSaved }) {
+function SettingsTab({ token, notifySuccess, notifyError, test, onSaved }) {
   const [form, setForm] = useState({
     title: test.title || '',
     description: test.description || '',
@@ -294,10 +311,10 @@ function SettingsTab({ token, setMessage, test, onSaved }) {
         },
       };
       await api.updateTest(token, test._id, payload);
-      setMessage('Settings saved.');
-      onSaved();
+      notifySuccess('Settings saved successfully.');
+      await onSaved();
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to save test settings.');
     } finally {
       setSaving(false);
     }
@@ -435,7 +452,7 @@ function SettingsTab({ token, setMessage, test, onSaved }) {
 
 // ── Questions Tab ─────────────────────────────────────────────────────────────
 
-function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
+function QuestionsTab({ token, notifySuccess, notifyError, test, allTests, onRefresh }) {
   const [mode, setMode] = useState(null); // null | 'add' | 'edit' | 'bank' | 'copy'
   const [editingQuestion, setEditingQuestion] = useState(null);
 
@@ -451,6 +468,7 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
   const [copyFromTestId, setCopyFromTestId] = useState('');
   const [copyFromTest, setCopyFromTest] = useState(null);
   const [selectedCopyIds, setSelectedCopyIds] = useState([]);
+  const [busyAction, setBusyAction] = useState(null);
 
   const loadBank = useCallback(async () => {
     try {
@@ -462,9 +480,9 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
       const data = await api.listQuestionBank(token, params);
       setBankQuestions(data.questions || []);
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to load question bank.');
     }
-  }, [token, bankSearch, bankSubject, bankType, bankTag, setMessage]);
+  }, [token, bankSearch, bankSubject, bankType, bankTag, notifyError]);
 
   useEffect(() => {
     if (mode === 'bank') loadBank();
@@ -479,62 +497,77 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
   }, [copyFromTestId, allTests]);
 
   async function handleAddQuestion(draft) {
+    setBusyAction('add-question');
     try {
       await api.addQuestion(token, test._id, draft);
-      setMessage('Question added.');
+      notifySuccess('Question added successfully.');
       setMode(null);
-      onRefresh();
+      await onRefresh();
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to add question.');
+    } finally {
+      setBusyAction(null);
     }
   }
 
   async function handleUpdateQuestion(draft) {
+    setBusyAction('update-question');
     try {
       await api.updateQuestion(token, test._id, editingQuestion.id, draft);
-      setMessage('Question updated.');
+      notifySuccess('Question updated successfully.');
       setMode(null);
       setEditingQuestion(null);
-      onRefresh();
+      await onRefresh();
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to update question.');
+    } finally {
+      setBusyAction(null);
     }
   }
 
   async function handleDeleteQuestion(questionId) {
     if (!window.confirm('Delete this question?')) return;
+    setBusyAction(`delete-${questionId}`);
     try {
       await api.deleteQuestion(token, test._id, questionId);
-      setMessage('Question deleted.');
-      onRefresh();
+      notifySuccess('Question deleted successfully.');
+      await onRefresh();
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to delete question.');
+    } finally {
+      setBusyAction(null);
     }
   }
 
   async function handleAddFromBank() {
-    if (!selectedBankIds.length) { setMessage('Select questions first.'); return; }
+    if (!selectedBankIds.length) { notifyError('Select questions first.'); return; }
+    setBusyAction('import-bank');
     try {
       const resp = await api.addBankQuestionsToTest(token, test._id, selectedBankIds);
-      setMessage(`Added ${resp.addedCount} question(s).`);
+      notifySuccess(`Added ${resp.addedCount} question(s) from bank.`);
       setSelectedBankIds([]);
       setMode(null);
-      onRefresh();
+      await onRefresh();
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to import questions from bank.');
+    } finally {
+      setBusyAction(null);
     }
   }
 
   async function handleCopyFromTest() {
-    if (!selectedCopyIds.length) { setMessage('Select questions first.'); return; }
+    if (!selectedCopyIds.length) { notifyError('Select questions first.'); return; }
+    setBusyAction('copy-questions');
     try {
       await api.copyQuestions(token, test._id, { fromTestId: copyFromTestId, questionIds: selectedCopyIds });
-      setMessage('Questions copied.');
+      notifySuccess('Questions copied successfully.');
       setSelectedCopyIds([]);
       setMode(null);
-      onRefresh();
+      await onRefresh();
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to copy questions.');
+    } finally {
+      setBusyAction(null);
     }
   }
 
@@ -557,9 +590,11 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
           <h3 className="m-0 mb-3">{mode === 'edit' ? 'Edit Question' : 'Add Question'}</h3>
           <QuestionForm
             token={token}
-            setMessage={setMessage}
+            notifySuccess={notifySuccess}
+            notifyError={notifyError}
             initial={mode === 'edit' ? editingQuestion : null}
             onSave={mode === 'edit' ? handleUpdateQuestion : handleAddQuestion}
+            submitting={busyAction === 'add-question' || busyAction === 'update-question'}
             onCancel={() => { setMode(null); setEditingQuestion(null); }}
           />
         </div>
@@ -570,7 +605,7 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
         <div className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="m-0">Import from Question Bank</h3>
-            <button type="button" className="secondary" onClick={() => { setMode(null); setSelectedBankIds([]); }}>✕ Close</button>
+            <button type="button" className="secondary" disabled={busyAction === 'import-bank'} onClick={() => { setMode(null); setSelectedBankIds([]); }}>✕ Close</button>
           </div>
           <div className="flex gap-2 flex-wrap mb-3">
             <label style={{ flex: 1, minWidth: 150 }}>
@@ -595,7 +630,7 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
               <input value={bankTag} onChange={(e) => setBankTag(e.target.value)} placeholder="Tag" />
             </label>
             <div style={{ alignSelf: 'flex-end' }}>
-              <button type="button" onClick={loadBank}>🔍 Search</button>
+              <button type="button" disabled={busyAction === 'import-bank'} onClick={loadBank}>🔍 Search</button>
             </div>
           </div>
           <div className="grid gap-2" style={{ maxHeight: 400, overflowY: 'auto' }}>
@@ -626,7 +661,7 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
           </div>
           <div className="flex gap-2 mt-3">
             <button type="button" onClick={handleAddFromBank} disabled={!selectedBankIds.length}>
-              Add {selectedBankIds.length > 0 ? `(${selectedBankIds.length})` : ''} Selected
+              {busyAction === 'import-bank' ? 'Adding…' : `Add ${selectedBankIds.length > 0 ? `(${selectedBankIds.length})` : ''} Selected`}
             </button>
           </div>
         </div>
@@ -637,7 +672,7 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
         <div className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)]">
           <div className="flex items-center justify-between mb-3">
             <h3 className="m-0">Copy from Another Test</h3>
-            <button type="button" className="secondary" onClick={() => { setMode(null); setSelectedCopyIds([]); }}>✕ Close</button>
+            <button type="button" className="secondary" disabled={busyAction === 'copy-questions'} onClick={() => { setMode(null); setSelectedCopyIds([]); }}>✕ Close</button>
           </div>
           <label>
             Select Source Test
@@ -673,7 +708,7 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
           {copyFromTest && (
             <div className="flex gap-2 mt-3">
               <button type="button" onClick={handleCopyFromTest} disabled={!selectedCopyIds.length}>
-                Copy {selectedCopyIds.length > 0 ? `(${selectedCopyIds.length})` : ''} Selected
+                {busyAction === 'copy-questions' ? 'Copying…' : `Copy ${selectedCopyIds.length > 0 ? `(${selectedCopyIds.length})` : ''} Selected`}
               </button>
             </div>
           )}
@@ -716,6 +751,7 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
                   <button
                     type="button"
                     className="secondary"
+                    disabled={String(busyAction || '').startsWith('delete-')}
                     onClick={() => { setEditingQuestion(q); setMode('edit'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                   >
                     ✏️
@@ -724,9 +760,10 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
                     type="button"
                     className="secondary"
                     style={{ color: '#dc2626' }}
+                    disabled={String(busyAction || '').startsWith('delete-')}
                     onClick={() => handleDeleteQuestion(q.id)}
                   >
-                    🗑
+                    {busyAction === `delete-${q.id}` ? 'Deleting…' : '🗑'}
                   </button>
                 </div>
               </div>
@@ -740,12 +777,14 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
 
 // ── Access Control Tab ────────────────────────────────────────────────────────
 
-function AccessTab({ token, setMessage, testId }) {
+function AccessTab({ token, notifySuccess, notifyError, testId }) {
   const [assignedUsers, setAssignedUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [userSearch, setUserSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [savingAccess, setSavingAccess] = useState(false);
+  const [allowingAll, setAllowingAll] = useState(false);
 
   const loadAccess = useCallback(async () => {
     setLoading(true);
@@ -759,31 +798,37 @@ function AccessTab({ token, setMessage, testId }) {
       setAllUsers(usersData.users || []);
       setSelectedUserIds(assigned.map((u) => u._id));
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to load access control users.');
     } finally {
       setLoading(false);
     }
-  }, [token, testId, setMessage]);
+  }, [token, testId, notifyError]);
 
   useEffect(() => { loadAccess(); }, [loadAccess]);
 
   async function handleSaveAccess() {
+    setSavingAccess(true);
     try {
       await api.assignUsers(token, testId, [...new Set(selectedUserIds.map(String))], 'replace');
-      setMessage('Access control saved.');
-      loadAccess();
+      notifySuccess('Access control saved successfully.');
+      await loadAccess();
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to save access control.');
+    } finally {
+      setSavingAccess(false);
     }
   }
 
   async function handleAllowAll() {
+    setAllowingAll(true);
     try {
       await api.assignUsers(token, testId, [], 'replace');
-      setMessage('All students can now access this test.');
-      loadAccess();
+      notifySuccess('All students can now access this test.');
+      await loadAccess();
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to enable access for all students.');
+    } finally {
+      setAllowingAll(false);
     }
   }
 
@@ -815,6 +860,7 @@ function AccessTab({ token, setMessage, testId }) {
                   type="button"
                   className="secondary"
                   style={{ color: '#dc2626' }}
+                  disabled={savingAccess || allowingAll}
                   onClick={() => setSelectedUserIds((prev) => prev.filter((id) => id !== u._id))}
                 >
                   Remove
@@ -857,8 +903,12 @@ function AccessTab({ token, setMessage, testId }) {
           {filteredUsers.length === 0 && <p className="text-[var(--muted)] m-0">No students found.</p>}
         </div>
         <div className="flex gap-2 mt-3">
-          <button type="button" onClick={handleSaveAccess}>Save Access Control</button>
-          <button type="button" className="secondary" onClick={handleAllowAll}>Allow All Students</button>
+          <button type="button" disabled={savingAccess || allowingAll} onClick={handleSaveAccess}>
+            {savingAccess ? 'Saving…' : 'Save Access Control'}
+          </button>
+          <button type="button" className="secondary" disabled={savingAccess || allowingAll} onClick={handleAllowAll}>
+            {allowingAll ? 'Updating…' : 'Allow All Students'}
+          </button>
         </div>
       </div>
     </div>
@@ -867,7 +917,7 @@ function AccessTab({ token, setMessage, testId }) {
 
 // ── TestEditor main ───────────────────────────────────────────────────────────
 
-export default function TestEditor({ token, setMessage, testId, onBack }) {
+export default function TestEditor({ token, notifySuccess, notifyError, testId, onBack }) {
   const [tab, setTab] = useState('settings'); // 'settings' | 'questions' | 'access'
   const [test, setTest] = useState(null);
   const [allTests, setAllTests] = useState([]);
@@ -880,13 +930,13 @@ export default function TestEditor({ token, setMessage, testId, onBack }) {
       setAllTests(tests);
       const found = tests.find((t) => t._id === testId);
       if (found) setTest(found);
-      else setMessage('Test not found.');
+      else notifyError('Test not found.');
     } catch (err) {
-      setMessage(err.message);
+      notifyError(err?.message || 'Failed to load test editor data.');
     } finally {
       setLoading(false);
     }
-  }, [token, testId, setMessage]);
+  }, [token, testId, notifyError]);
 
   useEffect(() => { loadTest(); }, [loadTest]);
 
@@ -923,13 +973,13 @@ export default function TestEditor({ token, setMessage, testId, onBack }) {
 
       {/* Tab content */}
       {tab === 'settings' && (
-        <SettingsTab token={token} setMessage={setMessage} test={test} onSaved={loadTest} />
+        <SettingsTab token={token} notifySuccess={notifySuccess} notifyError={notifyError} test={test} onSaved={loadTest} />
       )}
       {tab === 'questions' && (
-        <QuestionsTab token={token} setMessage={setMessage} test={test} allTests={allTests} onRefresh={loadTest} />
+        <QuestionsTab token={token} notifySuccess={notifySuccess} notifyError={notifyError} test={test} allTests={allTests} onRefresh={loadTest} />
       )}
       {tab === 'access' && (
-        <AccessTab token={token} setMessage={setMessage} testId={testId} />
+        <AccessTab token={token} notifySuccess={notifySuccess} notifyError={notifyError} testId={testId} />
       )}
     </div>
   );

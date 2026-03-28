@@ -1,9 +1,74 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../api';
 import AdminDashboard from './AdminDashboard';
 import TestList from './TestList';
 import TestEditor from './TestEditor';
 import QuestionBankPage from './QuestionBankPage';
+
+function getErrorMessage(err) {
+  return err?.message || 'Something went wrong. Please try again.';
+}
+
+function ToastViewport({ toasts, onDismiss }) {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: '1rem',
+        right: '1rem',
+        zIndex: 2000,
+        display: 'grid',
+        gap: '0.5rem',
+        width: 'min(90vw, 360px)',
+      }}
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      {toasts.map((toast) => {
+        const styleByType = {
+          success: { background: '#ecfdf3', border: '1px solid #86efac', color: '#14532d' },
+          error: { background: '#fff1f2', border: '1px solid #fda4af', color: '#881337' },
+          info: { background: '#eff6ff', border: '1px solid #93c5fd', color: '#1e3a8a' },
+        };
+
+        return (
+          <div
+            key={toast.id}
+            role="status"
+            style={{
+              ...styleByType[toast.type],
+              borderRadius: '12px',
+              padding: '0.65rem 0.75rem',
+              boxShadow: '0 16px 32px rgba(15, 23, 42, 0.15)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: '0.6rem',
+            }}
+          >
+            <p className="m-0 text-sm font-semibold" style={{ lineHeight: 1.35 }}>{toast.text}</p>
+            <button
+              type="button"
+              aria-label="Dismiss notification"
+              onClick={() => onDismiss(toast.id)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'inherit',
+                padding: 0,
+                fontWeight: 700,
+                cursor: 'pointer',
+                lineHeight: 1,
+              }}
+            >
+              x
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function makeDefaultNewTest() {
   const now = Date.now();
@@ -21,7 +86,7 @@ function makeDefaultNewTest() {
 }
 
 // Simple create-test form (shown when view === 'create')
-function CreateTestForm({ token, setMessage, onCreated, onCancel }) {
+function CreateTestForm({ token, notifySuccess, notifyError, onCreated, onCancel }) {
   const [form, setForm] = useState(makeDefaultNewTest);
   const [saving, setSaving] = useState(false);
 
@@ -41,10 +106,10 @@ function CreateTestForm({ token, setMessage, onCreated, onCancel }) {
         isApproved: form.isApproved,
         questions: [],
       });
-      setMessage('Test created.');
+      notifySuccess('Test created successfully.');
       onCreated(data.test?._id || data._id);
     } catch (err) {
-      setMessage(err.message);
+      notifyError(getErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -53,7 +118,7 @@ function CreateTestForm({ token, setMessage, onCreated, onCancel }) {
   return (
     <div className="grid gap-4">
       <div className="flex items-center gap-3">
-        <button type="button" className="secondary" onClick={onCancel}>← Back</button>
+        <button type="button" className="secondary" onClick={onCancel} disabled={saving}>← Back</button>
         <h2 className="m-0">Create New Test</h2>
       </div>
       <article className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)]">
@@ -112,7 +177,7 @@ function CreateTestForm({ token, setMessage, onCreated, onCancel }) {
           </label>
           <div className="flex gap-2">
             <button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create Test'}</button>
-            <button type="button" className="secondary" onClick={onCancel}>Cancel</button>
+            <button type="button" className="secondary" onClick={onCancel} disabled={saving}>Cancel</button>
           </div>
         </form>
       </article>
@@ -124,17 +189,55 @@ export default function AdminPage({ token, setMessage, onLogout }) {
   const [view, setView] = useState('dashboard'); // 'dashboard' | 'tests' | 'create' | 'editor' | 'bank'
   const [editingTestId, setEditingTestId] = useState(null);
   const [tests, setTests] = useState([]);
+  const [testsLoading, setTestsLoading] = useState(false);
+  const [toasts, setToasts] = useState([]);
 
-  const loadTests = useCallback(async () => {
+  const dismissToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  }, []);
+
+  const notify = useCallback((type, text) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setToasts((prev) => [...prev, { id, type, text }]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((toast) => toast.id !== id));
+    }, 3600);
+  }, []);
+
+  const notifyError = useCallback((text) => {
+    notify('error', text);
+    setMessage(text);
+  }, [notify, setMessage]);
+
+  const notifySuccess = useCallback((text) => {
+    notify('success', text);
+    setMessage('');
+  }, [notify, setMessage]);
+
+  const notifyInfo = useCallback((text) => {
+    notify('info', text);
+    setMessage('');
+  }, [notify, setMessage]);
+
+  const toastApi = useMemo(() => ({ notifySuccess, notifyError, notifyInfo }), [notifySuccess, notifyError, notifyInfo]);
+
+  const loadTests = useCallback(async ({ forceRefresh = false } = {}) => {
+    setTestsLoading(true);
     try {
-      const data = await api.getAllTests(token);
+      const data = await api.getAllTests(token, { forceRefresh });
       setTests(data.tests || []);
     } catch (err) {
-      setMessage(err.message);
+      notifyError(getErrorMessage(err));
+    } finally {
+      setTestsLoading(false);
     }
-  }, [token, setMessage]);
+  }, [token, notifyError]);
 
-  useEffect(() => { loadTests(); }, [loadTests]);
+  useEffect(() => {
+    if (view === 'bank' && tests.length === 0 && !testsLoading) {
+      loadTests();
+    }
+  }, [view, tests.length, testsLoading, loadTests]);
 
   function handleNavigate(target) {
     if (target === 'tests-new') {
@@ -158,6 +261,7 @@ export default function AdminPage({ token, setMessage, onLogout }) {
 
   return (
     <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
+      <ToastViewport toasts={toasts} onDismiss={dismissToast} />
       {/* Sidebar */}
       <aside
         style={{
@@ -202,12 +306,12 @@ export default function AdminPage({ token, setMessage, onLogout }) {
       {/* Main content */}
       <main style={{ flex: 1, minWidth: 0 }}>
         {view === 'dashboard' && (
-          <AdminDashboard token={token} setMessage={setMessage} onNavigate={handleNavigate} />
+          <AdminDashboard token={token} onNavigate={handleNavigate} {...toastApi} />
         )}
         {view === 'tests' && (
           <TestList
             token={token}
-            setMessage={setMessage}
+            {...toastApi}
             onEditTest={(id) => { setEditingTestId(id); setView('editor'); }}
             onCreateNew={() => setView('create')}
           />
@@ -215,9 +319,10 @@ export default function AdminPage({ token, setMessage, onLogout }) {
         {view === 'create' && (
           <CreateTestForm
             token={token}
-            setMessage={setMessage}
+            notifySuccess={notifySuccess}
+            notifyError={notifyError}
             onCreated={(newTestId) => {
-              loadTests();
+              loadTests({ forceRefresh: true });
               if (newTestId) { setEditingTestId(newTestId); setView('editor'); }
               else setView('tests');
             }}
@@ -227,13 +332,13 @@ export default function AdminPage({ token, setMessage, onLogout }) {
         {view === 'editor' && editingTestId && (
           <TestEditor
             token={token}
-            setMessage={setMessage}
+            {...toastApi}
             testId={editingTestId}
             onBack={() => { setView('tests'); setEditingTestId(null); }}
           />
         )}
         {view === 'bank' && (
-          <QuestionBankPage token={token} setMessage={setMessage} tests={tests} />
+          <QuestionBankPage token={token} tests={tests} testsLoading={testsLoading} {...toastApi} />
         )}
       </main>
     </div>

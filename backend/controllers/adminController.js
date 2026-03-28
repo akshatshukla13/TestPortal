@@ -3,14 +3,112 @@ import User from '../models/User.js';
 
 const DEFAULT_TEST_DURATION_MS = 4 * 60 * 60 * 1000; // 4 hours
 
+function normalizeIdList(ids = []) {
+  const normalized = ids
+    .map((id) => (typeof id === 'object' && id !== null ? id._id ?? id.id : id))
+    .filter((id) => id !== undefined && id !== null && String(id).trim() !== '')
+    .map((id) => String(id));
+
+  return [...new Set(normalized)];
+}
+
 function toNumberOr(value, fallback = null) {
   if (value === undefined || value === null || value === '') return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function normalizeTags(tags) {
+  if (!Array.isArray(tags)) return [];
+  return tags
+    .map((tag) => String(tag).trim())
+    .filter(Boolean);
+}
+
+function parseNatFromSolutionText(solutionText) {
+  if (typeof solutionText !== 'string') {
+    return {
+      extracted: false,
+      answer: null,
+      tolerance: null,
+      min: null,
+      max: null,
+      cleanedText: solutionText || '',
+    };
+  }
+
+  const raw = solutionText.trim();
+  const match = raw.match(
+    /^\s*solution\s*[:\-]?\s*([-+]?\d*\.?\d+)\s*(?:(?:to|\-|–)\s*([-+]?\d*\.?\d+))?/i,
+  );
+
+  if (!match) {
+    return {
+      extracted: false,
+      answer: null,
+      tolerance: null,
+      min: null,
+      max: null,
+      cleanedText: solutionText,
+    };
+  }
+
+  const first = Number(match[1]);
+  const second = match[2] !== undefined ? Number(match[2]) : null;
+  const suffix = raw.slice(match[0].length).replace(/^\s*[:\-]?\s*/, '').trim();
+
+  if (!Number.isFinite(first)) {
+    return {
+      extracted: false,
+      answer: null,
+      tolerance: null,
+      min: null,
+      max: null,
+      cleanedText: solutionText,
+    };
+  }
+
+  if (Number.isFinite(second)) {
+    const min = Math.min(first, second);
+    const max = Math.max(first, second);
+    const answer = Number(((min + max) / 2).toFixed(6));
+    const tolerance = Number(((max - min) / 2).toFixed(6));
+    return {
+      extracted: true,
+      answer,
+      tolerance,
+      min,
+      max,
+      cleanedText: suffix,
+    };
+  }
+
+  return {
+    extracted: true,
+    answer: first,
+    tolerance: 0,
+    min: null,
+    max: null,
+    cleanedText: suffix,
+  };
+}
+
 function parseQuestion(question, index) {
   const type = question.type || 'MCQ';
+  const legacyNat =
+    type === 'NAT' && (question?.numerical?.answer ?? question?.numericalAnswer) == null
+      ? parseNatFromSolutionText(question?.solution?.text || '')
+      : { extracted: false, cleanedText: question?.solution?.text || '' };
+
+  const explicitAnswer = toNumberOr(question?.numerical?.answer ?? question?.numericalAnswer, null);
+  const explicitTolerance = toNumberOr(question?.numerical?.tolerance, null);
+  const explicitMin = toNumberOr(question?.numerical?.min, null);
+  const explicitMax = toNumberOr(question?.numerical?.max, null);
+
+  const natAnswer = explicitAnswer ?? (legacyNat.extracted ? legacyNat.answer : null);
+  const natTolerance = explicitTolerance ?? (legacyNat.extracted ? legacyNat.tolerance : 0);
+  const natMin = explicitMin ?? (legacyNat.extracted ? legacyNat.min : null);
+  const natMax = explicitMax ?? (legacyNat.extracted ? legacyNat.max : null);
 
   return {
     id: String(question.id ?? index + 1),
@@ -25,7 +123,7 @@ function parseQuestion(question, index) {
       isCorrect: Boolean(opt.isCorrect),
     })),
     solution: {
-      text: question?.solution?.text || '',
+      text: legacyNat.extracted ? legacyNat.cleanedText : (question?.solution?.text || ''),
       image: question?.solution?.image || null,
     },
     marks: {
@@ -36,15 +134,16 @@ function parseQuestion(question, index) {
     type,
     numerical: {
       // Keep NAT values from either modern or legacy payload shapes.
-      answer: toNumberOr(question?.numerical?.answer ?? question?.numericalAnswer, null),
-      tolerance: toNumberOr(question?.numerical?.tolerance, 0),
-      min: toNumberOr(question?.numerical?.min, null),
-      max: toNumberOr(question?.numerical?.max, null),
+      answer: natAnswer,
+      tolerance: natTolerance,
+      min: natMin,
+      max: natMax,
     },
     subject: question?.subject || 'General',
     topic: question?.topic || 'Mixed',
     difficulty: question?.difficulty || 'Beginner',
     section: question?.section || 'Core',
+    tags: normalizeTags(question?.tags),
     explanationVideoUrl: question?.explanationVideoUrl || '',
   };
 }
@@ -390,7 +489,7 @@ export async function listUsers(req, res, next) {
   try {
     const users = await User.find({ role: 'student' })
       .sort({ createdAt: -1 })
-      .select('_id name email targetExam isSuspended createdAt')
+      .select('_id name email role targetExam isSuspended createdAt')
       .lean();
 
     res.json({ users });
@@ -409,17 +508,26 @@ export async function assignUsers(req, res, next) {
       throw new Error('Test not found');
     }
 
+    const normalizedIds = normalizeIdList(userIds);
+    const validStudents = await User.find({
+      _id: { $in: normalizedIds },
+      role: 'student',
+    })
+      .select('_id')
+      .lean();
+    const validStudentIds = validStudents.map((u) => String(u._id));
+
     if (mode === 'replace') {
-      test.allowedUsers = userIds;
+      test.allowedUsers = validStudentIds;
     } else if (mode === 'add') {
       const existing = test.allowedUsers.map(String);
-      for (const id of userIds) {
+      for (const id of validStudentIds) {
         if (!existing.includes(String(id))) {
           test.allowedUsers.push(id);
         }
       }
     } else if (mode === 'remove') {
-      const removeSet = new Set(userIds.map(String));
+      const removeSet = new Set(validStudentIds.map(String));
       test.allowedUsers = test.allowedUsers.filter((id) => !removeSet.has(String(id)));
     } else {
       res.status(400);
@@ -427,7 +535,16 @@ export async function assignUsers(req, res, next) {
     }
 
     await test.save();
-    res.json({ test });
+
+    const hydrated = await Test.findById(test._id)
+      .populate('allowedUsers', '_id name email role')
+      .lean();
+
+    res.json({
+      test,
+      assignedUsers: hydrated?.allowedUsers || [],
+      assignedCount: (hydrated?.allowedUsers || []).length,
+    });
   } catch (error) {
     next(error);
   }

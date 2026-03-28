@@ -12,6 +12,21 @@ function canResumeOrSubmit(test, attempt) {
   return attempt.status === 'in_progress' && attempt.startedAt <= test.endTime;
 }
 
+function isUserAllowedForTest(testLike, userId) {
+  const allowed = testLike?.allowedUsers || [];
+  // Empty allowedUsers means open to all students.
+  if (!allowed.length) return true;
+  return allowed.some((id) => String(id) === String(userId));
+}
+
+function ensureStudentAccessOrThrow(req, res, testLike) {
+  if (req.user?.role === 'admin') return;
+  if (!isUserAllowedForTest(testLike, req.user?._id)) {
+    res.status(403);
+    throw new Error('You are not assigned to this test');
+  }
+}
+
 function parseNumericAnswer(answerLike) {
   const rawValue =
     answerLike?.numericAnswer ??
@@ -144,21 +159,20 @@ function evaluateQuestionScore(question, answerEntry) {
 
 export async function getAvailableTests(req, res, next) {
   try {
-    const now = new Date();
     const tests = await Test.find({
       isApproved: true,
-      startTime: { $lte: now },
-      endTime: { $gte: now },
     }).sort({ startTime: 1 });
+
+    const visibleTests = tests.filter((t) => isUserAllowedForTest(t, req.user._id));
 
     const attempts = await Attempt.find({
       user: req.user._id,
-      test: { $in: tests.map((t) => t._id) },
+      test: { $in: visibleTests.map((t) => t._id) },
     });
     const attemptMap = new Map(attempts.map((a) => [String(a.test), a]));
 
     res.json({
-      tests: tests.map((t) => sanitizeTestForStudent(t, attemptMap.get(String(t._id)) || null)),
+      tests: visibleTests.map((t) => sanitizeTestForStudent(t, attemptMap.get(String(t._id)) || null)),
     });
   } catch (error) {
     next(error);
@@ -318,6 +332,7 @@ export async function getRecommendations(req, res, next) {
 
     const recommendedTests = await Test.find({
       isApproved: true,
+      $or: [{ allowedUsers: { $size: 0 } }, { allowedUsers: req.user._id }],
       ...(weak.length ? { 'questions.subject': { $in: weak.map((w) => w.subject) } } : {}),
     })
       .sort({ startTime: 1 })
@@ -339,6 +354,8 @@ export async function getTestById(req, res, next) {
       res.status(404);
       throw new Error('Test not found');
     }
+
+    ensureStudentAccessOrThrow(req, res, test);
 
     const existingAttempt = await Attempt.findOne({ user: req.user._id, test: test._id });
 
@@ -364,6 +381,8 @@ export async function startTestSession(req, res, next) {
       res.status(404);
       throw new Error('Test not found');
     }
+
+    ensureStudentAccessOrThrow(req, res, test);
 
     let attempt = await Attempt.findOne({ user: req.user._id, test: test._id });
 
@@ -406,6 +425,8 @@ export async function getTestSession(req, res, next) {
       throw new Error('Test not found');
     }
 
+    ensureStudentAccessOrThrow(req, res, test);
+
     const attempt = await Attempt.findOne({ user: req.user._id, test: test._id });
     if (!attempt || attempt.status === 'submitted') {
       return res.json({ attempt: null });
@@ -421,6 +442,7 @@ export async function getTestSession(req, res, next) {
         activeSection: attempt.activeSection,
         answers: attempt.answers,
         questionTimes: attempt.questionTimes,
+        antiCheat: attempt.antiCheat,
       },
     });
   } catch (error) {
@@ -435,6 +457,8 @@ export async function saveTestProgress(req, res, next) {
       res.status(404);
       throw new Error('Test not found');
     }
+
+    ensureStudentAccessOrThrow(req, res, test);
 
     const attempt = await Attempt.findOne({ user: req.user._id, test: test._id });
     if (!attempt) {
@@ -500,6 +524,8 @@ export async function submitTest(req, res, next) {
       res.status(404);
       throw new Error('Test not found');
     }
+
+    ensureStudentAccessOrThrow(req, res, test);
 
     let attempt = await Attempt.findOne({ user: req.user._id, test: test._id });
 
@@ -580,6 +606,8 @@ export async function getMyAnalysis(req, res, next) {
       res.status(404);
       throw new Error('Test not found');
     }
+
+    ensureStudentAccessOrThrow(req, res, test);
 
     const attempt = await Attempt.findOne({ user: req.user._id, test: test._id, status: 'submitted' });
     if (!attempt) {
@@ -804,6 +832,8 @@ export async function getMyResult(req, res, next) {
       res.status(404);
       throw new Error('Test not found');
     }
+
+    ensureStudentAccessOrThrow(req, res, test);
 
     const attempt = await Attempt.findOne({ user: req.user._id, test: test._id, status: 'submitted' });
     if (!attempt) {

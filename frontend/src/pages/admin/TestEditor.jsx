@@ -25,6 +25,10 @@ function StatusBadge({ status }) {
 
 function QuestionForm({ token, setMessage, initial, onSave, onCancel }) {
   const [draft, setDraft] = useState(() => initial || buildDefaultQuestion());
+  const [tagsText, setTagsText] = useState(() => {
+    const source = initial || buildDefaultQuestion();
+    return Array.isArray(source.tags) ? source.tags.join(', ') : '';
+  });
 
   async function uploadImage(file, target, index = 0) {
     if (!file) return;
@@ -45,7 +49,13 @@ function QuestionForm({ token, setMessage, initial, onSave, onCancel }) {
 
   function handleSubmit(e) {
     e.preventDefault();
-    onSave(draft);
+    onSave({
+      ...draft,
+      tags: tagsText
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    });
   }
 
   return (
@@ -96,6 +106,14 @@ function QuestionForm({ token, setMessage, initial, onSave, onCancel }) {
           value={draft.section || ''}
           onChange={(e) => setDraft((p) => ({ ...p, section: e.target.value }))}
           placeholder="e.g. Core"
+        />
+      </label>
+      <label>
+        Tags (comma separated)
+        <input
+          value={tagsText}
+          onChange={(e) => setTagsText(e.target.value)}
+          placeholder="e.g. algebra, easy"
         />
       </label>
 
@@ -426,6 +444,7 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
   const [bankSearch, setBankSearch] = useState('');
   const [bankSubject, setBankSubject] = useState('');
   const [bankType, setBankType] = useState('');
+  const [bankTag, setBankTag] = useState('');
   const [selectedBankIds, setSelectedBankIds] = useState([]);
 
   // Copy from test state
@@ -439,12 +458,13 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
       if (bankSearch) params.search = bankSearch;
       if (bankSubject) params.subject = bankSubject;
       if (bankType) params.type = bankType;
+      if (bankTag) params.tag = bankTag;
       const data = await api.listQuestionBank(token, params);
       setBankQuestions(data.questions || []);
     } catch (err) {
       setMessage(err.message);
     }
-  }, [token, bankSearch, bankSubject, bankType, setMessage]);
+  }, [token, bankSearch, bankSubject, bankType, bankTag, setMessage]);
 
   useEffect(() => {
     if (mode === 'bank') loadBank();
@@ -570,6 +590,10 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
                 <option value="NAT">NAT</option>
               </select>
             </label>
+            <label>
+              Tag
+              <input value={bankTag} onChange={(e) => setBankTag(e.target.value)} placeholder="Tag" />
+            </label>
             <div style={{ alignSelf: 'flex-end' }}>
               <button type="button" onClick={loadBank}>🔍 Search</button>
             </div>
@@ -590,6 +614,9 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
                   <div className="flex gap-1.5 mb-1">
                     <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)]">{q.type}</span>
                     <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)]">{q.subject}</span>
+                    {Array.isArray(q.tags) && q.tags.length > 0 && (
+                      <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)]">#{q.tags[0]}</span>
+                    )}
                   </div>
                   <p className="m-0 text-sm">{q.question?.text?.slice(0, 120)}{q.question?.text?.length > 120 ? '…' : ''}</p>
                 </div>
@@ -672,6 +699,9 @@ function QuestionsTab({ token, setMessage, test, allTests, onRefresh }) {
                   <div className="flex gap-1.5 mb-1 flex-wrap">
                     <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)]">{q.type || 'MCQ'}</span>
                     <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)]">+{q.marks?.total ?? 1}</span>
+                    {Array.isArray(q.tags) && q.tags.map((tag) => (
+                      <span key={tag} className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)]">#{tag}</span>
+                    ))}
                     {q.marks?.negative > 0 && (
                       <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs" style={{ background: '#fee2e2', color: '#dc2626' }}>
                         −{q.marks.negative}
@@ -739,7 +769,7 @@ function AccessTab({ token, setMessage, testId }) {
 
   async function handleSaveAccess() {
     try {
-      await api.assignUsers(token, testId, selectedUserIds, 'replace');
+      await api.assignUsers(token, testId, [...new Set(selectedUserIds.map(String))], 'replace');
       setMessage('Access control saved.');
       loadAccess();
     } catch (err) {

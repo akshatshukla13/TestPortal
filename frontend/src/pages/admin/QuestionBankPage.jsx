@@ -24,7 +24,7 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
   const [bankQuestions, setBankQuestions] = useState([]);
   const [bankTotal, setBankTotal] = useState(0);
   const [bankPage, setBankPage] = useState(1);
-  const [bankFilter, setBankFilter] = useState({ subject: '', type: '', search: '', difficulty: '' });
+  const [bankFilter, setBankFilter] = useState({ subject: '', type: '', search: '', difficulty: '', tag: '' });
   const [bankDraft, setBankDraft] = useState(DEFAULT_BANK_Q);
   const [editingBankId, setEditingBankId] = useState(null);
   const [bankFormOpen, setBankFormOpen] = useState(false);
@@ -38,6 +38,7 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
       if (bankFilter.type) params.type = bankFilter.type;
       if (bankFilter.search) params.search = bankFilter.search;
       if (bankFilter.difficulty) params.difficulty = bankFilter.difficulty;
+      if (bankFilter.tag) params.tag = bankFilter.tag;
       const data = await api.listQuestionBank(token, params);
       setBankQuestions(data.questions || []);
       setBankTotal(data.total || 0);
@@ -372,8 +373,16 @@ export default function QuestionBankPage({ token, setMessage, tests = [] }) {
               <option value="Advanced">Advanced</option>
             </select>
           </label>
+          <label>
+            Tag
+            <input
+              value={bankFilter.tag}
+              onChange={(e) => setBankFilter((p) => ({ ...p, tag: e.target.value }))}
+              placeholder="e.g. aptitude"
+            />
+          </label>
           <button type="button" onClick={() => { setBankPage(1); loadBank(); }}>🔍 Search</button>
-          <button type="button" className="secondary" onClick={() => { setBankFilter({ subject: '', type: '', search: '', difficulty: '' }); setBankPage(1); }}>Reset</button>
+          <button type="button" className="secondary" onClick={() => { setBankFilter({ subject: '', type: '', search: '', difficulty: '', tag: '' }); setBankPage(1); }}>Reset</button>
         </div>
       </div>
 

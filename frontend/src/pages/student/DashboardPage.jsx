@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { openInNewTab, goTo } from "../../router";
 import Card from "../../components/ui/Card";
-import PageHeader from "../../components/ui/PageHeader";
 import StatusBadge from "../../components/ui/StatusBadge";
 import EmptyState from "../../components/ui/EmptyState";
 import { formatDateTime } from "../../utils/format";
@@ -71,15 +70,40 @@ export default function TestDashboard({ token, setMessage }) {
   const [activeTab, setActiveTab] = useState("Active");
 
   useEffect(() => {
-    api.getAvailableTests(token)
-      .then((res) => {
-        const enriched = (res.tests || []).map((t) => ({
-          ...t,
-          status: getTestStatus(t),
-        }));
-        setTests(enriched);
-      })
-      .catch(console.error);
+    let alive = true;
+
+    const loadTests = () => {
+      api.getAvailableTests(token)
+        .then((res) => {
+          if (!alive) return;
+          const enriched = (res.tests || []).map((t) => ({
+            ...t,
+            status: getTestStatus(t),
+          }));
+          setTests(enriched);
+        })
+        .catch(console.error);
+    };
+
+    loadTests();
+
+    // Refresh status when user comes back from an exam tab.
+    function handleFocusRefresh() {
+      loadTests();
+    }
+
+    function handleVisibilityRefresh() {
+      if (!document.hidden) loadTests();
+    }
+
+    window.addEventListener("focus", handleFocusRefresh);
+    document.addEventListener("visibilitychange", handleVisibilityRefresh);
+
+    return () => {
+      alive = false;
+      window.removeEventListener("focus", handleFocusRefresh);
+      document.removeEventListener("visibilitychange", handleVisibilityRefresh);
+    };
   }, [token]);
 
   useEffect(() => {

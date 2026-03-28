@@ -28,6 +28,7 @@ export function buildDefaultQuestion() {
     ],
     solution: { text: '', image: null },
     marks: { total: 1, negative: 0 },
+    tags: [],
     type: 'MCQ',
   };
 }

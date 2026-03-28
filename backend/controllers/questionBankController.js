@@ -21,13 +21,25 @@ function sanitizeQB(doc) {
 
 export async function listQuestionBank(req, res, next) {
   try {
-    const { subject, topic, difficulty, type, search, page = 1, limit = 50 } = req.query;
+    const { subject, topic, difficulty, type, search, tag, tags, page = 1, limit = 50 } = req.query;
 
     const filter = {};
     if (subject) filter.subject = subject;
     if (topic) filter.topic = topic;
     if (difficulty) filter.difficulty = difficulty;
     if (type) filter.type = type;
+    if (tag || tags) {
+      const raw = tag ?? tags;
+      const parsedTags = String(raw)
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+      if (parsedTags.length === 1) {
+        filter.tags = parsedTags[0];
+      } else if (parsedTags.length > 1) {
+        filter.tags = { $in: parsedTags };
+      }
+    }
     if (search) {
       // Escape special regex characters to prevent ReDoS
       const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -205,6 +217,7 @@ export async function addBankQuestionsToTest(req, res, next) {
         topic: bq.topic,
         difficulty: bq.difficulty,
         section: bq.section || 'Core',
+        tags: bq.tags || [],
       });
     }
 

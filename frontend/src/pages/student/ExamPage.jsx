@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../api';
 import { formatSeconds } from '../../utils/format';
 
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 const SUBMIT_EVENT_KEY = 'test-portal-submitted-at';
 const OFFLINE_SAVE_KEY = (testId) => `exam-offline-${testId}`;
 const AUTO_SAVE_INTERVAL_MS = 30_000;
@@ -43,6 +44,16 @@ function parseExpr(tokens, pos) {
     left = op === '+' ? left + right : left - right;
   }
   return [left, pos[0]];
+}
+
+function toQuestionTimeMap(questionTimesLike) {
+  if (!questionTimesLike) return {};
+  if (questionTimesLike instanceof Map) {
+    return Object.fromEntries(questionTimesLike.entries());
+  }
+  return Object.fromEntries(
+    Object.entries(questionTimesLike).map(([k, v]) => [k, Number(v)]),
+  );
 }
 
 function tokenize(expr) {
@@ -316,6 +327,17 @@ export default function ExamPage({ token, testId, setMessage }) {
     localStorage.removeItem(OFFLINE_SAVE_KEY(testId));
   }
 
+  function persistOfflineSnapshot(payload) {
+    try {
+      localStorage.setItem(
+        OFFLINE_SAVE_KEY(testId),
+        JSON.stringify({ ...payload, savedAt: Date.now() }),
+      );
+    } catch {
+      // ignore quota errors
+    }
+  }
+
   // ── build payload ─────────────────────────────────────────────────────────
 
   function buildAnswersList(answersMap, statesMap) {
@@ -354,12 +376,15 @@ export default function ExamPage({ token, testId, setMessage }) {
       questionTimesRef.current = currentTimes;
 
       // Persist locally
-      try {
-        localStorage.setItem(
-          OFFLINE_SAVE_KEY(testId),
-          JSON.stringify({ answers: currentAnswers, questionStates: currentStates, questionTimes: currentTimes, endAt }),
-        );
-      } catch { /* ignore quota errors */ }
+      persistOfflineSnapshot({
+        answers: currentAnswers,
+        questionStates: currentStates,
+        questionTimes: currentTimes,
+        activeQuestionId: activeQuestionIdRef.current,
+        activeSection: activeSectionRef.current,
+        antiCheat: antiCheatRef.current,
+        endAt,
+      });
 
       if (!navigator.onLine || !test) return;
       try {
@@ -418,8 +443,15 @@ export default function ExamPage({ token, testId, setMessage }) {
       let restoredAnswers = {};
       let restoredStates = {};
       let restoredTimes = {};
+      let restoredActiveQuestionId = null;
+      let restoredActiveSection = null;
+      let restoredAntiCheat = null;
+      const local = loadFromLocalStorage();
+      const serverSavedAt = session?.lastSavedAt ? new Date(session.lastSavedAt).getTime() : 0;
+      const localSavedAt = Number(local?.savedAt || 0);
+      const shouldUseServerSnapshot = Boolean(session?.answers?.length) && serverSavedAt >= localSavedAt;
 
-      if (session?.answers?.length) {
+      if (shouldUseServerSnapshot) {
         for (const a of session.answers) {
           restoredAnswers[a.questionId] = {
             selectedOptionId: a.selectedOptionId || null,
@@ -434,19 +466,17 @@ export default function ExamPage({ token, testId, setMessage }) {
             markedForReview: Boolean(a.markedForReview),
           };
         }
-        if (session.questionTimes) {
-          restoredTimes = Object.fromEntries(
-            Object.entries(session.questionTimes).map(([k, v]) => [k, Number(v)]),
-          );
-        }
-      } else {
-        // fallback to localStorage
-        const local = loadFromLocalStorage();
-        if (local) {
-          restoredAnswers = local.answers || {};
-          restoredStates = local.questionStates || {};
-          restoredTimes = local.questionTimes || {};
-        }
+        restoredTimes = toQuestionTimeMap(session.questionTimes);
+        restoredActiveQuestionId = session.activeQuestionId || null;
+        restoredActiveSection = session.activeSection || null;
+        restoredAntiCheat = session.antiCheat || null;
+      } else if (local) {
+        restoredAnswers = local.answers || {};
+        restoredStates = local.questionStates || {};
+        restoredTimes = toQuestionTimeMap(local.questionTimes);
+        restoredActiveQuestionId = local.activeQuestionId || null;
+        restoredActiveSection = local.activeSection || null;
+        restoredAntiCheat = local.antiCheat || null;
       }
 
       setAnswers(restoredAnswers);
@@ -457,17 +487,21 @@ export default function ExamPage({ token, testId, setMessage }) {
       questionStatesRef.current = restoredStates;
       questionTimesRef.current = restoredTimes;
 
+      if (restoredAntiCheat) {
+        setAntiCheat((prev) => ({ ...prev, ...restoredAntiCheat }));
+      }
+
       // Navigate to active question if resumed
-      if (session?.activeQuestionId) {
+      if (restoredActiveQuestionId) {
         const idx = (testData.questions || []).findIndex(
-          (q) => q.id === session.activeQuestionId,
+          (q) => q.id === restoredActiveQuestionId,
         );
         if (idx >= 0) setCurrentIndex(idx);
       }
 
       // Set active section
       if (testData.sections?.length) {
-        setActiveSection(session?.activeSection || testData.sections[0]?.key || null);
+        setActiveSection(restoredActiveSection || testData.sections[0]?.key || null);
       }
 
       await enterFullscreen();
@@ -518,6 +552,30 @@ export default function ExamPage({ token, testId, setMessage }) {
     return () => clearInterval(autoSaveTimer.current);
   }, [test, submitted, doAutoSave]);
 
+  // Persist immediately to local storage so abrupt tab close can still resume latest state.
+  useEffect(() => {
+    if (!test || submitted) return;
+    persistOfflineSnapshot({
+      answers,
+      questionStates,
+      questionTimes,
+      activeQuestionId: currentQuestion?.id || null,
+      activeSection,
+      antiCheat,
+      endAt,
+    });
+  }, [
+    test,
+    submitted,
+    answers,
+    questionStates,
+    questionTimes,
+    currentQuestion?.id,
+    activeSection,
+    antiCheat,
+    endAt,
+  ]);
+
   // ── violation auto-submit ─────────────────────────────────────────────────
 
   useEffect(() => {
@@ -564,6 +622,41 @@ export default function ExamPage({ token, testId, setMessage }) {
       }
     }
     function onBeforeUnload(e) {
+      const currentAnswers = answersRef.current;
+      const currentStates = questionStatesRef.current;
+      const currentTimes = questionTimesRef.current;
+
+      persistOfflineSnapshot({
+        answers: currentAnswers,
+        questionStates: currentStates,
+        questionTimes: currentTimes,
+        activeQuestionId: activeQuestionIdRef.current,
+        activeSection: activeSectionRef.current,
+        antiCheat: antiCheatRef.current,
+        endAt,
+      });
+
+      if (navigator.onLine && test?._id) {
+        // keepalive allows the browser to send this during tab close.
+        fetch(`${API_BASE}/tests/${test._id}/session`, {
+          method: 'PATCH',
+          keepalive: true,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            answers: buildAnswersList(currentAnswers, currentStates),
+            questionTimes: currentTimes,
+            activeQuestionId: activeQuestionIdRef.current,
+            activeSection: activeSectionRef.current,
+            antiCheat: antiCheatRef.current,
+          }),
+        }).catch(() => {
+          // best-effort
+        });
+      }
+
       e.preventDefault();
       e.returnValue = '';
     }
@@ -595,7 +688,7 @@ export default function ExamPage({ token, testId, setMessage }) {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
     };
-  }, [submitted, test]);
+  }, [submitted, test, token, endAt]);
 
   // ── question navigation ───────────────────────────────────────────────────
 
@@ -719,12 +812,15 @@ export default function ExamPage({ token, testId, setMessage }) {
     const currentTimes = questionTimesRef.current;
 
     // Final save to localStorage before submit
-    try {
-      localStorage.setItem(
-        OFFLINE_SAVE_KEY(testId),
-        JSON.stringify({ answers: currentAnswers, questionStates: currentStates, questionTimes: currentTimes, endAt }),
-      );
-    } catch { /* ignore */ }
+    persistOfflineSnapshot({
+      answers: currentAnswers,
+      questionStates: currentStates,
+      questionTimes: currentTimes,
+      activeQuestionId: activeQuestionIdRef.current,
+      activeSection: activeSectionRef.current,
+      antiCheat: antiCheatRef.current,
+      endAt,
+    });
 
     try {
       const durationSeconds = Math.max(0, Math.floor((Date.now() - (startAt || Date.now())) / 1000));

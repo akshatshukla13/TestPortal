@@ -20,6 +20,7 @@ const questionSchema = new mongoose.Schema(
     options: [optionSchema],
     subject: { type: String, default: 'General' },
     topic: { type: String, default: 'Mixed' },
+    tags: [{ type: String, trim: true }],
     difficulty: {
       type: String,
       enum: ['Beginner', 'Intermediate', 'Advanced'],

@@ -117,7 +117,7 @@ function App() {
               {message}
             </p>
           )}
-          <AdminPage token={auth.token} setMessage={setMessage} />
+          <AdminPage token={auth.token} setMessage={setMessage} onLogout={logout} />
         </main>
       );
     }

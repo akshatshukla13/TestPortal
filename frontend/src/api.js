@@ -81,4 +81,14 @@ export const api = {
     request(`/admin/question-bank/${questionId}`, { method: 'PATCH', token, body: payload }),
   deleteBankQuestion: (token, questionId) =>
     request(`/admin/question-bank/${questionId}`, { method: 'DELETE', token }),
+
+  getDashboardStats: (token) => request('/admin/dashboard', { token }),
+  updateTest: (token, testId, payload) => request(`/admin/tests/${testId}`, { method: 'PATCH', token, body: payload }),
+  deleteTest: (token, testId) => request(`/admin/tests/${testId}`, { method: 'DELETE', token }),
+  duplicateTest: (token, testId) => request(`/admin/tests/${testId}/duplicate`, { method: 'POST', token }),
+  deleteQuestion: (token, testId, questionId) => request(`/admin/tests/${testId}/questions/${questionId}`, { method: 'DELETE', token }),
+  updateQuestion: (token, testId, questionId, question) => request(`/admin/tests/${testId}/questions/${questionId}`, { method: 'PATCH', token, body: { question } }),
+  listUsers: (token) => request('/admin/users', { token }),
+  assignUsers: (token, testId, userIds, mode) => request(`/admin/tests/${testId}/assign-users`, { method: 'POST', token, body: { userIds, mode } }),
+  getAssignedUsers: (token, testId) => request(`/admin/tests/${testId}/assigned-users`, { token }),
 };

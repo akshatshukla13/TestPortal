@@ -64,6 +64,7 @@ const sectionSchema = new mongoose.Schema(
 const testSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
+    description: { type: String, default: '' },
     category: {
       type: String,
       enum: ['full-mock', 'subject-wise', 'topic-wise', 'pyq'],
@@ -90,6 +91,7 @@ const testSchema = new mongoose.Schema(
       warningThresholdMinutes: { type: Number, default: 10 },
     },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    allowedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     sections: [sectionSchema],
     questions: [questionSchema],
   },

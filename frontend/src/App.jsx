@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import './App.css';
 import { api } from './api';
 import { parseRoute } from './router';
-import { readAuth, writeAuth } from './session';
+import { setAuth, clearAuth } from './store/authSlice';
 import AuthPanel from './components/AuthPanel';
 import StudentLayout from './components/student/StudentLayout';
 import DashboardPage from './pages/student/DashboardPage';
@@ -14,9 +15,11 @@ import DocumentsPage from './pages/student/DocumentsPage';
 import VideoPage from './pages/student/VideoPage';
 import CurrentAffairsPage from './pages/student/CurrentAffairsPage';
 import AnnouncementsPage from './pages/student/AnnouncementsPage';
+import LoadingBar from './components/ui/LoadingBar';
 
 function App() {
-  const [auth, setAuth] = useState(() => readAuth());
+  const dispatch = useDispatch();
+  const { token, user } = useSelector((state) => state.auth);
   const [route, setRoute] = useState(parseRoute());
   const [authMode, setAuthMode] = useState('login');
   const [authForm, setAuthForm] = useState({
@@ -28,11 +31,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  const isAdmin = auth.user?.role === 'admin';
-
-  useEffect(() => {
-    writeAuth(auth);
-  }, [auth]);
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     function onHashChange() {
@@ -54,7 +53,7 @@ function App() {
           ? await api.signup({ ...payload, name: authForm.name, role: authForm.role })
           : await api.login(payload);
 
-      setAuth({ token: response.token, user: response.user });
+      dispatch(setAuth({ token: response.token, user: response.user }));
       window.location.hash = '#/dashboard';
       setMessage('Login successful.');
     } catch (error) {
@@ -65,7 +64,7 @@ function App() {
   }
 
   function logout() {
-    setAuth({ token: null, user: null });
+    dispatch(clearAuth());
     setMessage('Logged out.');
   }
 
@@ -73,23 +72,23 @@ function App() {
     if (route.page === 'report') {
       return (
         <ReportPage
-          token={auth.token}
+          token={token}
           tab={route.tab}
           initialTestId={route.testId}
           setMessage={setMessage}
         />
       );
     }
-    if (route.page === 'bookmarks') return <BookmarksPage token={auth.token} />;
+    if (route.page === 'bookmarks') return <BookmarksPage token={token} />;
     if (route.page === 'documents') return <DocumentsPage />;
     if (route.page === 'video') return <VideoPage />;
     if (route.page === 'current-affairs') return <CurrentAffairsPage />;
     if (route.page === 'announcements') return <AnnouncementsPage />;
-    return <DashboardPage token={auth.token} setMessage={setMessage} />;
+    return <DashboardPage token={token} setMessage={setMessage} />;
   }
 
   function renderContent() {
-    if (!auth.token) {
+    if (!token) {
       return (
         <main className="w-[min(1600px,95vw)] mx-auto py-5 px-0">
           {message && (
@@ -117,20 +116,20 @@ function App() {
               {message}
             </p>
           )}
-          <AdminPage token={auth.token} setMessage={setMessage} onLogout={logout} />
+          <AdminPage token={token} setMessage={setMessage} onLogout={logout} />
         </main>
       );
     }
 
     if (route.page === 'test') {
-      return <ExamPage token={auth.token} testId={route.testId} setMessage={setMessage} />;
+      return <ExamPage token={token} testId={route.testId} setMessage={setMessage} />;
     }
 
     return (
       <>
         <StudentLayout
           routePage={route.page}
-          user={auth.user}
+          user={user}
           onLogout={logout}
         >
           {message && (
@@ -144,7 +143,12 @@ function App() {
     );
   }
 
-  return renderContent();
+  return (
+    <>
+      <LoadingBar />
+      {renderContent()}
+    </>
+  );
 }
 
 export default App;

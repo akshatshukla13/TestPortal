@@ -4,6 +4,7 @@ import { openInPopup, goTo } from "../../router";
 import Card from "../../components/ui/Card";
 import StatusBadge from "../../components/ui/StatusBadge";
 import EmptyState from "../../components/ui/EmptyState";
+import { SkeletonCard } from "../../components/ui/Skeleton";
 import { formatDateTime } from "../../utils/format";
 
 const TABS = ["Active", "Upcoming", "Missed", "Completed"];
@@ -159,16 +160,6 @@ export default function TestDashboard({ token, setMessage }) {
 
   return (
     <div className="grid gap-4">
-      {activeTab !== "Completed" && (loadingTests || refreshingTests) && (
-        <p className="text-[var(--muted)] m-0">
-          {loadingTests ? "Loading tests..." : "Refreshing tests..."}
-        </p>
-      )}
-
-      {activeTab === "Completed" && loadingAttempts && (
-        <p className="text-[var(--muted)] m-0">Loading completed tests...</p>
-      )}
-
       <Card className="p-2.5">
         <div className="flex flex-wrap gap-2">
           {TABS.map((tab) => (
@@ -185,16 +176,29 @@ export default function TestDashboard({ token, setMessage }) {
       </Card>
 
       {activeTab === "Completed" ? (
-        <>
+        loadingAttempts ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {completedAttempts.map((attempt) => (
-              <CompletedTestCard key={attempt._id} attempt={attempt} />
-            ))}
+            {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
-          {completedAttempts.length === 0 && <EmptyState message="No completed tests yet." />}
-        </>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {completedAttempts.map((attempt) => (
+                <CompletedTestCard key={attempt._id} attempt={attempt} />
+              ))}
+            </div>
+            {completedAttempts.length === 0 && <EmptyState message="No completed tests yet." />}
+          </>
+        )
+      ) : loadingTests ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
       ) : (
         <>
+          {refreshingTests && (
+            <p className="text-[var(--muted)] m-0 text-sm">Refreshing…</p>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredTests.map((test) => (
               <Card key={test._id} className="p-4">

@@ -1,3 +1,6 @@
+import { store } from './store/index.js';
+import { requestStarted, requestEnded } from './store/uiSlice.js';
+
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const responseCache = new Map();
@@ -42,27 +45,32 @@ async function request(
     headers.Authorization = `Bearer ${token}`;
   }
 
+  store.dispatch(requestStarted());
   const fetchPromise = (async () => {
-    const response = await fetch(`${API_BASE}${path}`, {
-      method: normalizedMethod,
-      headers,
-      body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
-    });
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Request failed');
-    }
-
-    if (canUseCache) {
-      responseCache.set(resolvedCacheKey, {
-        data,
-        expiresAt: Date.now() + cacheTtlMs,
+    try {
+      const response = await fetch(`${API_BASE}${path}`, {
+        method: normalizedMethod,
+        headers,
+        body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
       });
-    }
 
-    return data;
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Request failed');
+      }
+
+      if (canUseCache) {
+        responseCache.set(resolvedCacheKey, {
+          data,
+          expiresAt: Date.now() + cacheTtlMs,
+        });
+      }
+
+      return data;
+    } finally {
+      store.dispatch(requestEnded());
+    }
   })();
 
   if (canUseCache) {

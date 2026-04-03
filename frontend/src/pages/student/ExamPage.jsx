@@ -666,13 +666,7 @@ export default function ExamPage({ token, testId, setMessage }) {
   return (
     <main className="exam-mock-page flex h-screen flex-col overflow-hidden bg-white text-black" style={{ fontFamily: '"Public Sans", "Inter", sans-serif' }}>
       <header className="w-full shrink-0">
-        <div className="flex h-8 items-center justify-between bg-[#336699] px-4 text-xs text-white">
-          <span className="font-medium">cdn4.digialm.com//OnlineAssessment/quiz.html?585@@M464@@0@@0@@0@@0</span>
-          <div className="flex items-center gap-4">
-            <span className="material-symbols-outlined text-sm" aria-hidden="true">search</span>
-            <span className="material-symbols-outlined text-sm" aria-hidden="true">more_vert</span>
-          </div>
-        </div>
+       
 
         <div className="flex items-center justify-between border-b border-gray-300 bg-white px-4 py-1 shadow-sm">
           <div className="flex min-w-0 flex-1 items-center gap-4">
@@ -947,38 +941,9 @@ export default function ExamPage({ token, testId, setMessage }) {
         </aside>
       </div>
 
-      <footer className="flex h-7 w-full items-center justify-center bg-[#5a6a7a] text-[10px] text-white">
-        <span>Version : 17.07.00</span>
-      </footer>
+      
 
-      <div className="flex h-10 w-full items-center justify-between bg-[#2a2a2a] px-3">
-        <div className="flex items-center gap-4">
-          <span className="material-symbols-outlined text-white opacity-80" aria-hidden="true">grid_view</span>
-          <span className="material-symbols-outlined text-white opacity-80" aria-hidden="true">search</span>
-          <div className="ml-2 flex gap-4">
-            <span className="material-symbols-outlined text-[#ffd700]" aria-hidden="true">folder</span>
-            <span className="material-symbols-outlined text-[#4285f4]" aria-hidden="true">chrome_reader_mode</span>
-            <span className="material-symbols-outlined text-[#217346]" aria-hidden="true">description</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 text-[11px] font-medium text-white">
-          <span className="material-symbols-outlined text-xs" aria-hidden="true">keyboard_arrow_up</span>
-          <div className="flex items-center gap-1">
-            <span className="material-symbols-outlined text-xs" aria-hidden="true">wifi</span>
-            <span className="material-symbols-outlined text-xs" aria-hidden="true">volume_up</span>
-            <span className="material-symbols-outlined text-xs text-red-500" aria-hidden="true">error</span>
-          </div>
-          <div className="leading-none text-right">
-            <div>8:23 PM</div>
-            <div className="text-[9px]">4/3/2026</div>
-          </div>
-          <div className="ml-1 flex items-center border-l border-gray-600 pl-2">
-            <span className="material-symbols-outlined text-xs" aria-hidden="true">chat_bubble</span>
-            <span className="ml-0.5 rounded-full bg-gray-500 px-1 text-[8px]">2</span>
-          </div>
-        </div>
-      </div>
+      
 
       {lowTimeWarning && !showConfirm && !showOfflineAlert && (
         <div className="fixed left-1/2 top-4 z-[9998] -translate-x-1/2 border border-[#f3c9a0] bg-[#fff6eb] px-3 py-2 text-[11px] font-semibold text-[#8a4f0e] shadow-md">

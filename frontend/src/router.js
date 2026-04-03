@@ -28,3 +28,20 @@ export function openInNewTab(path) {
   const url = `${window.location.origin}${window.location.pathname}${hashPath}`;
   window.open(url, '_blank', 'noopener,noreferrer');
 }
+
+export function openInPopup(path) {
+  const hashPath = path.startsWith('/') ? `#${path}` : `#/${path}`;
+  const url = `${window.location.origin}${window.location.pathname}${hashPath}`;
+  const features = [
+    'popup=yes',
+    'width=1400',
+    'height=900',
+    'left=0',
+    'top=0',
+    'resizable=yes',
+    'scrollbars=yes',
+  ].join(',');
+  const popup = window.open(url, 'test-popup', features);
+  popup?.focus?.();
+  return popup;
+}

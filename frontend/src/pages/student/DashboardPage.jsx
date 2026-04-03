@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
-import { openInNewTab, goTo } from "../../router";
+import { openInPopup, goTo } from "../../router";
 import Card from "../../components/ui/Card";
 import StatusBadge from "../../components/ui/StatusBadge";
 import EmptyState from "../../components/ui/EmptyState";
@@ -142,8 +142,12 @@ export default function TestDashboard({ token, setMessage }) {
   }, [loadAttempts, loadTests]);
 
   function openTest(testId) {
-    openInNewTab(`/test/${testId}`);
-    setMessage?.("Test opened in new tab");
+    const popup = openInPopup(`/test/${testId}`);
+    if (!popup) {
+      setMessage?.("Allow popups to start the test.");
+      return;
+    }
+    setMessage?.("Test opened in a popup window.");
   }
 
   const filteredTests = tests.filter((t) => {

@@ -6,216 +6,111 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 const SUBMIT_EVENT_KEY = 'test-portal-submitted-at';
 const OFFLINE_SAVE_KEY = (testId) => `exam-offline-${testId}`;
 const AUTO_SAVE_INTERVAL_MS = 30_000;
-const LOW_TIME_WARN_SECS = 600; // 10 minutes
+const LOW_TIME_WARN_SECS = 600;
 
-// ── Calculator helpers ───────────────────────────────────────────────────────
-// Safe expression evaluator using recursive descent parsing (no eval/Function)
-
-function parseNum(tokens, pos) {
-  if (pos[0] >= tokens.length) return [0, pos[0]];
-  const tok = tokens[pos[0]];
-  if (tok === '(') {
-    pos[0]++;
-    const [val, nextPos] = parseExpr(tokens, pos);
-    pos[0] = nextPos;
-    if (tokens[pos[0]] === ')') pos[0]++;
-    return [val, pos[0]];
-  }
-  const num = parseFloat(tok);
-  pos[0]++;
-  return [Number.isNaN(num) ? 0 : num, pos[0]];
-}
-
-function parseMul(tokens, pos) {
-  let [left] = parseNum(tokens, pos);
-  while (pos[0] < tokens.length && (tokens[pos[0]] === '*' || tokens[pos[0]] === '/')) {
-    const op = tokens[pos[0]++];
-    const [right] = parseNum(tokens, pos);
-    left = op === '*' ? left * right : right !== 0 ? left / right : NaN;
-  }
-  return [left, pos[0]];
-}
-
-function parseExpr(tokens, pos) {
-  let [left] = parseMul(tokens, pos);
-  while (pos[0] < tokens.length && (tokens[pos[0]] === '+' || tokens[pos[0]] === '-')) {
-    const op = tokens[pos[0]++];
-    const [right] = parseMul(tokens, pos);
-    left = op === '+' ? left + right : left - right;
-  }
-  return [left, pos[0]];
-}
+const WATERMARK_VALUE = '298536392097';
 
 function toQuestionTimeMap(questionTimesLike) {
   if (!questionTimesLike) return {};
   if (questionTimesLike instanceof Map) {
     return Object.fromEntries(questionTimesLike.entries());
   }
-  return Object.fromEntries(
-    Object.entries(questionTimesLike).map(([k, v]) => [k, Number(v)]),
-  );
+  return Object.fromEntries(Object.entries(questionTimesLike).map(([key, value]) => [key, Number(value)]));
 }
 
-function tokenize(expr) {
-  const result = [];
-  let i = 0;
-  while (i < expr.length) {
-    if (/\s/.test(expr[i])) { i++; continue; }
-    if (/[0-9.]/.test(expr[i])) {
-      let num = '';
-      while (i < expr.length && /[0-9.]/.test(expr[i])) num += expr[i++];
-      result.push(num);
-    } else {
-      result.push(expr[i++]);
-    }
-  }
-  return result;
+function parseMarkLabel(value, fallback = '-') {
+  if (value === null || value === undefined || value === '') return fallback;
+  const text = String(value).trim();
+  const match = text.match(/-?\d+(?:\.\d+)?(?:\/\d+(?:\.\d+)?)?/);
+  return match ? match[0].replace(/\.0+$/, '') : text;
 }
 
-function safeEval(expr) {
-  try {
-    const cleaned = expr.replace(/×/g, '*').replace(/÷/g, '/');
-    const tokens = tokenize(cleaned);
-    if (!tokens.length) return '';
-    const pos = [0];
-    const [result] = parseExpr(tokens, pos);
-    if (!Number.isFinite(result)) return 'Error';
-    return String(parseFloat(result.toFixed(10)));
-  } catch {
-    return 'Error';
-  }
+function truncateText(text, maxLength = 24) {
+  if (!text) return '';
+  return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
 }
 
-function Calculator({ onClose }) {
-  const [display, setDisplay] = useState('0');
-  const [expr, setExpr] = useState('');
-  const [justEvaled, setJustEvaled] = useState(false);
+function getSectionTitle(section) {
+  if (!section) return '';
+  return section.title || section.name || section.label || section.key || '';
+}
 
-  function press(val) {
-    if (val === 'C') {
-      setDisplay('0');
-      setExpr('');
-      setJustEvaled(false);
-      return;
-    }
-    if (val === '=') {
-      const result = safeEval(expr + display);
-      setExpr('');
-      setDisplay(result === 'Error' ? 'Error' : result);
-      setJustEvaled(true);
-      return;
-    }
-    if (['+', '-', '×', '÷'].includes(val)) {
-      const newExpr = expr + (justEvaled ? display : display) + val;
-      setExpr(newExpr);
-      setDisplay('0');
-      setJustEvaled(false);
-      return;
-    }
-    if (val === '⌫') {
-      setDisplay((d) => (d.length > 1 ? d.slice(0, -1) : '0'));
-      return;
-    }
-    if (val === '.') {
-      if (display.includes('.')) return;
-      setDisplay((d) => (justEvaled ? '0.' : d + '.'));
-      setJustEvaled(false);
-      return;
-    }
-    // digit
-    const next = justEvaled || display === '0' ? val : display + val;
-    setDisplay(next);
-    setJustEvaled(false);
-  }
+function getQuestionText(question) {
+  return question?.question?.text || question?.text || '';
+}
 
-  const rows = [
-    ['C', '⌫', '÷', '×'],
-    ['7', '8', '9', '-'],
-    ['4', '5', '6', '+'],
-    ['1', '2', '3', '='],
-    ['0', '.'],
-  ];
+function getQuestionImage(question) {
+  return question?.question?.image || question?.image || null;
+}
 
+function getQuestionMarks(question) {
+  const marks = question?.marks || {};
+  return {
+    correct: parseMarkLabel(marks.totalMarks ?? marks.correctMarks ?? marks.total ?? marks.marks, '2'),
+    negative: parseMarkLabel(marks.negativeMarks ?? marks.negative ?? marks.negativeMark, '2/3'),
+  };
+}
+
+function buildAnswerPayload(test, answersMap, statesMap) {
+  if (!test) return [];
+  return (test.questions || []).map((question) => {
+    const answer = answersMap[question.id] || {};
+    const state = statesMap[question.id] || {};
+    return {
+      questionId: question.id,
+      selectedOptionId: answer.selectedOptionId || null,
+      selectedOptionIds: answer.selectedOptionIds || [],
+      numericAnswer:
+        answer.numericAnswer !== undefined && answer.numericAnswer !== null && answer.numericAnswer !== ''
+          ? Number(answer.numericAnswer)
+          : null,
+      visited: Boolean(state.visited),
+      markedForReview: Boolean(state.markedForReview),
+    };
+  });
+}
+
+function QuestionStatusDialog({ title, body, counts, confirmLabel, cancelLabel, onConfirm, onCancel }) {
   return (
-    <div className="fixed bottom-6 right-6 w-[220px] bg-white border border-[var(--line)] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.18)] z-[8888] overflow-hidden">
-      <div className="bg-[#1e293b] text-white flex justify-between items-center px-[0.7rem] py-[0.45rem] font-bold text-[0.88rem]">
-        <span>Calculator</span>
-        <button type="button" className="bg-transparent border-none text-white p-0 cursor-pointer text-base leading-none" onClick={onClose}>✕</button>
-      </div>
-      <div className="bg-[#0f172a] text-[#64748b] text-xs px-[0.7rem] pt-[0.2rem] text-right min-h-[1.3rem] font-mono">{expr || '\u00a0'}</div>
-      <div className="bg-[#0f172a] text-[#f8fafc] text-2xl font-bold text-right px-[0.7rem] pb-[0.4rem] pt-[0.15rem] font-mono break-all">{display}</div>
-      <div className="p-[0.4rem] grid gap-[0.3rem]">
-        {rows.map((row, ri) => (
-          <div key={ri} className="flex gap-[0.3rem]">{/* rows are static, index key is safe */}
-            {row.map((k) => (
-              <button
-                key={k}
-                type="button"
-                className={`flex-1 border border-[var(--line)] rounded-lg py-2 text-[0.9rem] font-semibold cursor-pointer${
-                  k === '=' ? ' bg-[#008870] text-white border-[#008870]' : ''
-                }${k === 'C' ? ' bg-[#fee2e2] text-[#7f1d1d] border-[#fca5a5]' : ''}${
-                  k !== '=' && k !== 'C' ? ' bg-[var(--card-soft)] text-[var(--ink)]' : ''
-                }`}
-                onClick={() => press(k)}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Confirm submit dialog ────────────────────────────────────────────────────
-
-function SubmitDialog({ counts, onConfirm, onCancel }) {
-  return (
-    <div className="fixed inset-0 bg-black/45 flex items-center justify-center z-[9999]">
-      <div className="bg-white border border-[var(--line)] rounded-2xl p-5 w-[min(440px,92vw)] shadow-[0_24px_60px_rgba(0,0,0,0.2)]">
-        <h3>Submit Test?</h3>
-        <p className="text-[var(--muted)] m-0">Once submitted, you cannot change your answers.</p>
-        <div className="grid grid-cols-2 gap-2.5 mt-3.5">
-          <div className="submit-count-item answered rounded-xl p-2.5 text-center flex flex-col gap-1">
-            <strong>{counts.answered}</strong>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/45 px-4">
+      <div className="w-[min(440px,92vw)] border border-[#cfd7df] bg-white p-5 shadow-[0_24px_60px_rgba(0,0,0,0.2)]">
+        <h3 className="mb-2 text-[18px] font-semibold text-[#1f2a37]">{title}</h3>
+        <p className="m-0 text-sm text-[#5b6877]">{body}</p>
+        <div className="mt-4 grid grid-cols-2 gap-2.5 text-center text-[11px] font-semibold">
+          <div className="submit-count-item answered rounded-[2px] p-2.5">
+            <strong className="block text-[18px] leading-none">{counts.answered}</strong>
             <span>Answered</span>
           </div>
-          <div className="submit-count-item not-answered rounded-xl p-2.5 text-center flex flex-col gap-1">
-            <strong>{counts.notAnswered}</strong>
+          <div className="submit-count-item not-answered rounded-[2px] p-2.5">
+            <strong className="block text-[18px] leading-none">{counts.notAnswered}</strong>
             <span>Not Answered</span>
           </div>
-          <div className="submit-count-item marked rounded-xl p-2.5 text-center flex flex-col gap-1">
-            <strong>{counts.markedForReview}</strong>
+          <div className="submit-count-item marked rounded-[2px] p-2.5">
+            <strong className="block text-[18px] leading-none">{counts.markedForReview}</strong>
             <span>Marked for Review</span>
           </div>
-          <div className="submit-count-item not-visited rounded-xl p-2.5 text-center flex flex-col gap-1">
-            <strong>{counts.notVisited}</strong>
+          <div className="submit-count-item not-visited rounded-[2px] p-2.5">
+            <strong className="block text-[18px] leading-none">{counts.notVisited}</strong>
             <span>Not Visited</span>
           </div>
         </div>
-        <div className="flex gap-2" style={{ justifyContent: 'flex-end', marginTop: '1rem' }}>
-          <button type="button" className="secondary" onClick={onCancel}>Cancel</button>
-          <button type="button" onClick={onConfirm}>Submit</button>
+        <div className="mt-4 flex justify-end gap-2">
+          <button type="button" className="secondary" onClick={onCancel}>{cancelLabel}</button>
+          <button type="button" onClick={onConfirm}>{confirmLabel}</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Main ExamPage ────────────────────────────────────────────────────────────
-
 export default function ExamPage({ token, testId, setMessage }) {
   const [test, setTest] = useState(null);
+  const [candidate, setCandidate] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [activeSection, setActiveSection] = useState(null);
-
-  // answers: { [qId]: { selectedOptionId, selectedOptionIds, numericAnswer } }
   const [answers, setAnswers] = useState({});
-  // questionStates: { [qId]: { visited, markedForReview } }
   const [questionStates, setQuestionStates] = useState({});
   const [questionTimes, setQuestionTimes] = useState({});
-
   const [startAt, setStartAt] = useState(null);
   const [endAt, setEndAt] = useState(null);
   const [leftTime, setLeftTime] = useState('00:00');
@@ -224,107 +119,108 @@ export default function ExamPage({ token, testId, setMessage }) {
   const [submittedDurationSeconds, setSubmittedDurationSeconds] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [showOfflineAlert, setShowOfflineAlert] = useState(false);
-  const [showCalc, setShowCalc] = useState(false);
-  const [showScratchpad, setShowScratchpad] = useState(false);
-  const [scratchpad, setScratchpad] = useState('');
-  const [showStartDialog, setShowStartDialog] = useState(true);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   const autoSaveTimer = useRef(null);
-  // Refs to track latest state for submit (avoids stale closure issues)
   const answersRef = useRef({});
   const questionStatesRef = useRef({});
   const questionTimesRef = useRef({});
-  // Refs for auto-save metadata to avoid resetting the timer on every navigation
   const activeQuestionIdRef = useRef(null);
   const activeSectionRef = useRef(null);
-  const antiCheatRef = useRef({});
+  const endAtRef = useRef(null);
 
-  const [antiCheat, setAntiCheat] = useState({
-    fullScreenExitCount: 0,
-    visibilityHiddenCount: 0,
-    blurCount: 0,
-    blockedShortcutCount: 0,
-    contextMenuCount: 0,
-    copyPasteCount: 0,
-  });
+  useEffect(() => {
+    let alive = true;
 
-  const violationScore =
-    antiCheat.fullScreenExitCount +
-    antiCheat.visibilityHiddenCount +
-    antiCheat.blurCount +
-    antiCheat.blockedShortcutCount;
+    api.me(token)
+      .then((response) => {
+        if (alive) setCandidate(response.user || null);
+      })
+      .catch(() => {
+        // ignore profile lookup failures
+      });
 
-  // ── derived ──────────────────────────────────────────────────────────────
+    return () => {
+      alive = false;
+    };
+  }, [token]);
 
-  const filteredQuestions = useMemo(() => {
-    if (!test) return [];
-    const qs = test.questions || [];
-    if (!activeSection) return qs;
-    return qs.filter((q) => q.section === activeSection);
-  }, [test, activeSection]);
+  const sections = useMemo(() => test?.sections || [], [test]);
+  const allQuestions = useMemo(() => test?.questions || [], [test]);
+
+  const activeQuestions = useMemo(() => {
+    if (!activeSection) return allQuestions;
+    return allQuestions.filter((question) => question.section === activeSection);
+  }, [allQuestions, activeSection]);
 
   const currentQuestion = useMemo(
-    () => filteredQuestions[currentIndex] ?? null,
-    [filteredQuestions, currentIndex],
+    () => activeQuestions[currentIndex] || null,
+    [activeQuestions, currentIndex],
   );
 
-  const sections = useMemo(() => {
-    if (!test?.sections?.length) return [];
-    return test.sections;
-  }, [test]);
+  const currentSectionTitle = useMemo(() => {
+    if (activeSection) {
+      return truncateText(getSectionTitle(sections.find((section) => section.key === activeSection)) || activeSection, 20);
+    }
+    return truncateText(getSectionTitle(sections[0]) || 'General Aptitude', 20);
+  }, [activeSection, sections]);
 
-  const isAnswered = useCallback((qId) => {
-    const a = answers[qId];
-    if (!a) return false;
-    if (a.selectedOptionId) return true;
-    if (a.selectedOptionIds?.length) return true;
-    if (a.numericAnswer !== undefined && a.numericAnswer !== '' && a.numericAnswer !== null)
+  const isAnswered = useCallback((questionId) => {
+    const answer = answers[questionId];
+    if (!answer) return false;
+    if (answer.selectedOptionId) return true;
+    if (answer.selectedOptionIds?.length) return true;
+    if (answer.numericAnswer !== undefined && answer.numericAnswer !== '' && answer.numericAnswer !== null) {
       return true;
+    }
     return false;
   }, [answers]);
 
-  const paletteStatus = useCallback((q) => {
-    const answered = isAnswered(q.id);
-    const { visited = false, markedForReview = false } = questionStates[q.id] || {};
+  const paletteStatus = useCallback((question) => {
+    const answered = isAnswered(question.id);
+    const { visited = false, markedForReview = false } = questionStates[question.id] || {};
+
     if (answered && markedForReview) return 'answered-marked';
     if (answered) return 'answered';
     if (markedForReview) return 'marked';
-    if (visited) return 'visited';
+    if (visited) return 'not-answered';
     return 'not-visited';
   }, [isAnswered, questionStates]);
 
   const counts = useMemo(() => {
-    const questions = test?.questions || [];
     let answered = 0;
     let notAnswered = 0;
     let markedForReview = 0;
     let notVisited = 0;
-    for (const q of questions) {
-      const st = paletteStatus(q);
-      if (st === 'answered' || st === 'answered-marked') answered += 1;
-      else if (st === 'marked') markedForReview += 1;
-      else if (st === 'visited') notAnswered += 1;
+
+    for (const question of allQuestions) {
+      const status = paletteStatus(question);
+      if (status === 'answered' || status === 'answered-marked') answered += 1;
+      else if (status === 'marked') markedForReview += 1;
+      else if (status === 'not-answered') notAnswered += 1;
       else notVisited += 1;
     }
+
     return { answered, notAnswered, markedForReview, notVisited };
-  }, [test, paletteStatus]);
+  }, [allQuestions, paletteStatus]);
 
-  // ── offline sync ─────────────────────────────────────────────────────────
+  const answeredAndMarkedCount = useMemo(
+    () => allQuestions.filter((question) => paletteStatus(question) === 'answered-marked').length,
+    [allQuestions, paletteStatus],
+  );
 
-  function loadFromLocalStorage() {
-    try {
-      const raw = localStorage.getItem(OFFLINE_SAVE_KEY(testId));
-      if (!raw) return null;
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  }
+  const questionMarks = useMemo(() => getQuestionMarks(currentQuestion), [currentQuestion]);
 
-  function clearLocalStorage() {
-    localStorage.removeItem(OFFLINE_SAVE_KEY(testId));
+  function getSnapshot() {
+    return {
+      answers: answersRef.current,
+      questionStates: questionStatesRef.current,
+      questionTimes: questionTimesRef.current,
+      activeQuestionId: activeQuestionIdRef.current,
+      activeSection: activeSectionRef.current,
+      endAt: endAtRef.current,
+    };
   }
 
   function persistOfflineSnapshot(payload) {
@@ -334,310 +230,210 @@ export default function ExamPage({ token, testId, setMessage }) {
         JSON.stringify({ ...payload, savedAt: Date.now() }),
       );
     } catch {
-      // ignore quota errors
+      // ignore storage quota errors
     }
   }
 
-  // ── build payload ─────────────────────────────────────────────────────────
-
-  function buildAnswersList(answersMap, statesMap) {
-    if (!test) return [];
-    return (test.questions || []).map((q) => {
-      const a = answersMap[q.id] || {};
-      const s = statesMap[q.id] || {};
-      return {
-        questionId: q.id,
-        selectedOptionId: a.selectedOptionId || null,
-        selectedOptionIds: a.selectedOptionIds || [],
-        numericAnswer:
-          a.numericAnswer !== undefined && a.numericAnswer !== null && a.numericAnswer !== ''
-            ? Number(a.numericAnswer)
-            : null,
-        visited: Boolean(s.visited),
-        markedForReview: Boolean(s.markedForReview),
-      };
-    });
+  function loadOfflineSnapshot() {
+    try {
+      const raw = localStorage.getItem(OFFLINE_SAVE_KEY(testId));
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
   }
 
-  // ── auto-save ─────────────────────────────────────────────────────────────
+  function clearOfflineSnapshot() {
+    localStorage.removeItem(OFFLINE_SAVE_KEY(testId));
+  }
 
-  // Keep refs in sync so doAutoSave doesn't need them as deps (avoids timer reset on navigation)
-  useEffect(() => {
-    activeQuestionIdRef.current = currentQuestion?.id || null;
-    activeSectionRef.current = activeSection;
-    antiCheatRef.current = antiCheat;
-  }, [currentQuestion, activeSection, antiCheat]);
+  const doAutoSave = useCallback(async (currentAnswers, currentStates, currentTimes) => {
+    answersRef.current = currentAnswers;
+    questionStatesRef.current = currentStates;
+    questionTimesRef.current = currentTimes;
 
-  const doAutoSave = useCallback(
-    async (currentAnswers, currentStates, currentTimes) => {
-      // Update refs for latest snapshot
-      answersRef.current = currentAnswers;
-      questionStatesRef.current = currentStates;
-      questionTimesRef.current = currentTimes;
+    const payload = {
+      answers: currentAnswers,
+      questionStates: currentStates,
+      questionTimes: currentTimes,
+      activeQuestionId: activeQuestionIdRef.current,
+      activeSection: activeSectionRef.current,
+      endAt: endAtRef.current,
+    };
 
-      // Persist locally
-      persistOfflineSnapshot({
-        answers: currentAnswers,
-        questionStates: currentStates,
+    persistOfflineSnapshot(payload);
+
+    if (!navigator.onLine || !test) return;
+
+    try {
+      await api.saveTestSession(token, test._id, {
+        answers: buildAnswerPayload(test, currentAnswers, currentStates),
         questionTimes: currentTimes,
         activeQuestionId: activeQuestionIdRef.current,
         activeSection: activeSectionRef.current,
-        antiCheat: antiCheatRef.current,
-        endAt,
       });
-
-      if (!navigator.onLine || !test) return;
-      try {
-        await api.saveTestSession(token, test._id, {
-          answers: buildAnswersList(currentAnswers, currentStates),
-          questionTimes: currentTimes,
-          activeQuestionId: activeQuestionIdRef.current,
-          activeSection: activeSectionRef.current,
-          antiCheat: antiCheatRef.current,
-        });
-      } catch {
-        // best-effort
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [token, test, testId, endAt],
-  );
-
-  // ── load / init ───────────────────────────────────────────────────────────
-
-  function handleStartConfirm() {
-    setShowStartDialog(false);
-    loadTest();
-  }
-
-  async function loadTest() {
-    try {
-      // Start or resume session
-      await api.startTestSession(token, testId);
-      const [testResp, sessionResp] = await Promise.all([
-        api.getTestById(token, testId),
-        api.getTestSession(token, testId),
-      ]);
-
-      const testData = testResp.test;
-      setTest(testData);
-
-      // Determine end time from session startedAt + duration
-      const session = sessionResp.attempt;
-      const durationSec = Number(testData.durationMinutes || 0) * 60;
-      let resolvedEndAt;
-
-      if (session?.startedAt) {
-        resolvedEndAt = new Date(session.startedAt).getTime() + durationSec * 1000;
-      } else {
-        resolvedEndAt = Date.now() + durationSec * 1000;
-      }
-
-      setStartAt(session?.startedAt ? new Date(session.startedAt).getTime() : Date.now());
-      setEndAt(resolvedEndAt);
-
-      const leftSec = Math.max(0, Math.floor((resolvedEndAt - Date.now()) / 1000));
-      setLeftTime(formatSeconds(leftSec));
-
-      // Restore saved answers
-      let restoredAnswers = {};
-      let restoredStates = {};
-      let restoredTimes = {};
-      let restoredActiveQuestionId = null;
-      let restoredActiveSection = null;
-      let restoredAntiCheat = null;
-      const local = loadFromLocalStorage();
-      const serverSavedAt = session?.lastSavedAt ? new Date(session.lastSavedAt).getTime() : 0;
-      const localSavedAt = Number(local?.savedAt || 0);
-      const shouldUseServerSnapshot = Boolean(session?.answers?.length) && serverSavedAt >= localSavedAt;
-
-      if (shouldUseServerSnapshot) {
-        for (const a of session.answers) {
-          restoredAnswers[a.questionId] = {
-            selectedOptionId: a.selectedOptionId || null,
-            selectedOptionIds: a.selectedOptionIds || [],
-            numericAnswer:
-              a.numericAnswer !== null && a.numericAnswer !== undefined
-                ? String(a.numericAnswer)
-                : '',
-          };
-          restoredStates[a.questionId] = {
-            visited: Boolean(a.visited),
-            markedForReview: Boolean(a.markedForReview),
-          };
-        }
-        restoredTimes = toQuestionTimeMap(session.questionTimes);
-        restoredActiveQuestionId = session.activeQuestionId || null;
-        restoredActiveSection = session.activeSection || null;
-        restoredAntiCheat = session.antiCheat || null;
-      } else if (local) {
-        restoredAnswers = local.answers || {};
-        restoredStates = local.questionStates || {};
-        restoredTimes = toQuestionTimeMap(local.questionTimes);
-        restoredActiveQuestionId = local.activeQuestionId || null;
-        restoredActiveSection = local.activeSection || null;
-        restoredAntiCheat = local.antiCheat || null;
-      }
-
-      setAnswers(restoredAnswers);
-      setQuestionStates(restoredStates);
-      setQuestionTimes(restoredTimes);
-      // Sync refs with restored state
-      answersRef.current = restoredAnswers;
-      questionStatesRef.current = restoredStates;
-      questionTimesRef.current = restoredTimes;
-
-      if (restoredAntiCheat) {
-        setAntiCheat((prev) => ({ ...prev, ...restoredAntiCheat }));
-      }
-
-      // Navigate to active question if resumed
-      if (restoredActiveQuestionId) {
-        const idx = (testData.questions || []).findIndex(
-          (q) => q.id === restoredActiveQuestionId,
-        );
-        if (idx >= 0) setCurrentIndex(idx);
-      }
-
-      // Set active section
-      if (testData.sections?.length) {
-        setActiveSection(restoredActiveSection || testData.sections[0]?.key || null);
-      }
-
-      await enterFullscreen();
-    } catch (error) {
-      setMessage(error.message);
+    } catch {
+      // best effort
     }
-  }
+  }, [test, token]);
 
-  // ── timer ─────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    let alive = true;
+
+    async function loadTest() {
+      try {
+        await api.startTestSession(token, testId);
+
+        const [testResponse, sessionResponse] = await Promise.all([
+          api.getTestById(token, testId),
+          api.getTestSession(token, testId),
+        ]);
+
+        if (!alive) return;
+
+        const testData = testResponse.test;
+        setTest(testData);
+
+        const session = sessionResponse.attempt;
+        const durationSeconds = Number(testData.durationMinutes || 0) * 60;
+        const resolvedEndAt = session?.startedAt
+          ? new Date(session.startedAt).getTime() + durationSeconds * 1000
+          : Date.now() + durationSeconds * 1000;
+
+        setStartAt(session?.startedAt ? new Date(session.startedAt).getTime() : Date.now());
+        setEndAt(resolvedEndAt);
+        endAtRef.current = resolvedEndAt;
+
+        const localSnapshot = loadOfflineSnapshot();
+        const serverSavedAt = session?.lastSavedAt ? new Date(session.lastSavedAt).getTime() : 0;
+        const localSavedAt = Number(localSnapshot?.savedAt || 0);
+        const shouldUseServerSnapshot = Boolean(session?.answers?.length) && serverSavedAt >= localSavedAt;
+
+        let restoredAnswers = {};
+        let restoredStates = {};
+        let restoredTimes = {};
+        let restoredQuestionId = null;
+        let restoredSection = null;
+
+        if (shouldUseServerSnapshot) {
+          for (const answer of session.answers || []) {
+            restoredAnswers[answer.questionId] = {
+              selectedOptionId: answer.selectedOptionId || null,
+              selectedOptionIds: answer.selectedOptionIds || [],
+              numericAnswer:
+                answer.numericAnswer !== null && answer.numericAnswer !== undefined
+                  ? String(answer.numericAnswer)
+                  : '',
+            };
+            restoredStates[answer.questionId] = {
+              visited: Boolean(answer.visited),
+              markedForReview: Boolean(answer.markedForReview),
+            };
+          }
+          restoredTimes = toQuestionTimeMap(session.questionTimes);
+          restoredQuestionId = session.activeQuestionId || null;
+          restoredSection = session.activeSection || null;
+        } else if (localSnapshot) {
+          restoredAnswers = localSnapshot.answers || {};
+          restoredStates = localSnapshot.questionStates || {};
+          restoredTimes = toQuestionTimeMap(localSnapshot.questionTimes);
+          restoredQuestionId = localSnapshot.activeQuestionId || null;
+          restoredSection = localSnapshot.activeSection || null;
+        }
+
+        setAnswers(restoredAnswers);
+        setQuestionStates(restoredStates);
+        setQuestionTimes(restoredTimes);
+        answersRef.current = restoredAnswers;
+        questionStatesRef.current = restoredStates;
+        questionTimesRef.current = restoredTimes;
+
+        if (restoredQuestionId) {
+          const restoredIndex = (testData.questions || []).findIndex((question) => question.id === restoredQuestionId);
+          if (restoredIndex >= 0) setCurrentIndex(restoredIndex);
+        }
+
+        if (testData.sections?.length) {
+          setActiveSection(restoredSection || testData.sections[0]?.key || null);
+        }
+
+        const leftSeconds = Math.max(0, Math.floor((resolvedEndAt - Date.now()) / 1000));
+        setLeftTime(formatSeconds(leftSeconds));
+      } catch (error) {
+        if (alive) setMessage(error.message);
+      }
+    }
+
+    loadTest();
+
+    return () => {
+      alive = false;
+    };
+  }, [token, testId, setMessage]);
+
+  useEffect(() => {
+    activeQuestionIdRef.current = currentQuestion?.id || null;
+    activeSectionRef.current = activeSection;
+  }, [currentQuestion, activeSection]);
 
   useEffect(() => {
     if (!test || !endAt || submitted) return;
 
     const timer = setInterval(() => {
       setQuestionTimes((prev) => {
-        const q = currentQuestion?.id;
-        if (!q) return prev;
-        const next = { ...prev, [q]: (prev[q] || 0) + 1 };
+        const questionId = currentQuestion?.id;
+        if (!questionId) return prev;
+
+        const next = { ...prev, [questionId]: (prev[questionId] || 0) + 1 };
         questionTimesRef.current = next;
         return next;
       });
 
-      const leftSec = Math.max(0, Math.floor((endAt - Date.now()) / 1000));
-      setLeftTime(formatSeconds(leftSec));
+      const leftSeconds = Math.max(0, Math.floor((endAt - Date.now()) / 1000));
+      setLeftTime(formatSeconds(leftSeconds));
 
-      if (leftSec <= LOW_TIME_WARN_SECS && !lowTimeWarning) {
-        setLowTimeWarning(true);
-      }
-
-      if (leftSec <= 0) {
+      if (leftSeconds <= LOW_TIME_WARN_SECS) setLowTimeWarning(true);
+      if (leftSeconds <= 0) {
         clearInterval(timer);
         submitNow(true);
       }
     }, 1000);
 
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [test, endAt, submitted, currentQuestion?.id]);
-
-  // ── auto-save interval ────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!test || submitted) return;
+
     autoSaveTimer.current = setInterval(() => {
-      // Use refs for latest state snapshot (avoids stale closure)
       doAutoSave(answersRef.current, questionStatesRef.current, questionTimesRef.current);
     }, AUTO_SAVE_INTERVAL_MS);
+
     return () => clearInterval(autoSaveTimer.current);
   }, [test, submitted, doAutoSave]);
 
-  // Persist immediately to local storage so abrupt tab close can still resume latest state.
   useEffect(() => {
     if (!test || submitted) return;
+
     persistOfflineSnapshot({
       answers,
       questionStates,
       questionTimes,
       activeQuestionId: currentQuestion?.id || null,
       activeSection,
-      antiCheat,
       endAt,
     });
-  }, [
-    test,
-    submitted,
-    answers,
-    questionStates,
-    questionTimes,
-    currentQuestion?.id,
-    activeSection,
-    antiCheat,
-    endAt,
-  ]);
-
-  // ── violation auto-submit ─────────────────────────────────────────────────
+  }, [test, submitted, answers, questionStates, questionTimes, currentQuestion?.id, activeSection, endAt]);
 
   useEffect(() => {
-    if (submitted) return;
-    if (violationScore >= 8) {
-      submitNow(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [violationScore, submitted]);
+    if (!test || submitted) return undefined;
 
-  // ── anti-cheat listeners ──────────────────────────────────────────────────
+    function onBeforeUnload(event) {
+      const snapshot = getSnapshot();
 
-  useEffect(() => {
-    if (submitted) return;
-
-    function blockContext(e) {
-      e.preventDefault();
-      setAntiCheat((p) => ({ ...p, contextMenuCount: p.contextMenuCount + 1 }));
-    }
-    function blockClipboard(e) {
-      e.preventDefault();
-      setAntiCheat((p) => ({ ...p, copyPasteCount: p.copyPasteCount + 1 }));
-    }
-    function onVisibilityChange() {
-      if (document.hidden)
-        setAntiCheat((p) => ({ ...p, visibilityHiddenCount: p.visibilityHiddenCount + 1 }));
-    }
-    function onBlur() {
-      setAntiCheat((p) => ({ ...p, blurCount: p.blurCount + 1 }));
-    }
-    function onFullScreenChange() {
-      if (!document.fullscreenElement && test)
-        setAntiCheat((p) => ({ ...p, fullScreenExitCount: p.fullScreenExitCount + 1 }));
-    }
-    function onKeyDown(e) {
-      const key = e.key.toLowerCase();
-      const blocked =
-        e.key === 'F12' ||
-        ((e.ctrlKey || e.metaKey) && ['c', 'v', 'x', 'u', 'p', 's'].includes(key)) ||
-        (e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(key));
-      if (blocked) {
-        e.preventDefault();
-        setAntiCheat((p) => ({ ...p, blockedShortcutCount: p.blockedShortcutCount + 1 }));
-      }
-    }
-    function onBeforeUnload(e) {
-      const currentAnswers = answersRef.current;
-      const currentStates = questionStatesRef.current;
-      const currentTimes = questionTimesRef.current;
-
-      persistOfflineSnapshot({
-        answers: currentAnswers,
-        questionStates: currentStates,
-        questionTimes: currentTimes,
-        activeQuestionId: activeQuestionIdRef.current,
-        activeSection: activeSectionRef.current,
-        antiCheat: antiCheatRef.current,
-        endAt,
-      });
+      persistOfflineSnapshot(snapshot);
 
       if (navigator.onLine && test?._id) {
-        // keepalive allows the browser to send this during tab close.
         fetch(`${API_BASE}/tests/${test._id}/session`, {
           method: 'PATCH',
           keepalive: true,
@@ -646,55 +442,49 @@ export default function ExamPage({ token, testId, setMessage }) {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            answers: buildAnswersList(currentAnswers, currentStates),
-            questionTimes: currentTimes,
-            activeQuestionId: activeQuestionIdRef.current,
-            activeSection: activeSectionRef.current,
-            antiCheat: antiCheatRef.current,
+            answers: buildAnswerPayload(test, snapshot.answers, snapshot.questionStates),
+            questionTimes: snapshot.questionTimes,
+            activeQuestionId: snapshot.activeQuestionId,
+            activeSection: snapshot.activeSection,
           }),
         }).catch(() => {
-          // best-effort
+          // best effort
         });
       }
 
-      e.preventDefault();
-      e.returnValue = '';
+      event.preventDefault();
+      event.returnValue = '';
     }
-    function onOnline() { setIsOffline(false); }
-    function onOffline() { setIsOffline(true); }
 
-    document.addEventListener('contextmenu', blockContext);
-    document.addEventListener('copy', blockClipboard);
-    document.addEventListener('cut', blockClipboard);
-    document.addEventListener('paste', blockClipboard);
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    document.addEventListener('fullscreenchange', onFullScreenChange);
-    window.addEventListener('blur', onBlur);
-    window.addEventListener('keydown', onKeyDown);
+    function onOnline() {
+      setIsOffline(false);
+    }
+
+    function onOffline() {
+      setIsOffline(true);
+    }
+
     window.addEventListener('beforeunload', onBeforeUnload);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
 
     return () => {
-      document.removeEventListener('contextmenu', blockContext);
-      document.removeEventListener('copy', blockClipboard);
-      document.removeEventListener('cut', blockClipboard);
-      document.removeEventListener('paste', blockClipboard);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      document.removeEventListener('fullscreenchange', onFullScreenChange);
-      window.removeEventListener('blur', onBlur);
-      window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('beforeunload', onBeforeUnload);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
     };
-  }, [submitted, test, token, endAt]);
+  }, [test, submitted, token]);
 
-  // ── question navigation ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!activeQuestions.length) return;
+    if (currentIndex >= activeQuestions.length) {
+      setCurrentIndex(0);
+    }
+  }, [activeQuestions, currentIndex]);
 
-  function markVisited(qId) {
+  function markVisited(questionId) {
     setQuestionStates((prev) => {
-      const next = { ...prev, [qId]: { ...(prev[qId] || {}), visited: true } };
+      const next = { ...prev, [questionId]: { ...(prev[questionId] || {}), visited: true } };
       questionStatesRef.current = next;
       return next;
     });
@@ -703,17 +493,9 @@ export default function ExamPage({ token, testId, setMessage }) {
   function jumpToQuestion(index) {
     if (currentQuestion) markVisited(currentQuestion.id);
     setCurrentIndex(index);
-    if (filteredQuestions[index]) markVisited(filteredQuestions[index].id);
+    const nextQuestion = activeQuestions[index];
+    if (nextQuestion) markVisited(nextQuestion.id);
   }
-
-  function goNext() {
-    jumpToQuestion(Math.min(filteredQuestions.length - 1, currentIndex + 1));
-  }
-  function goPrev() {
-    jumpToQuestion(Math.max(0, currentIndex - 1));
-  }
-
-  // ── answer handling ───────────────────────────────────────────────────────
 
   function saveMCQ(optionId) {
     if (!currentQuestion) return;
@@ -727,14 +509,14 @@ export default function ExamPage({ token, testId, setMessage }) {
   function toggleMSQ(optionId) {
     if (!currentQuestion) return;
     setAnswers((prev) => {
-      const cur = prev[currentQuestion.id] || {};
-      const ids = cur.selectedOptionIds || [];
-      const next = ids.includes(optionId)
-        ? ids.filter((id) => id !== optionId)
-        : [...ids, optionId];
-      const updated = { ...prev, [currentQuestion.id]: { ...cur, selectedOptionIds: next } };
-      answersRef.current = updated;
-      return updated;
+      const currentAnswer = prev[currentQuestion.id] || {};
+      const existing = currentAnswer.selectedOptionIds || [];
+      const selectedOptionIds = existing.includes(optionId)
+        ? existing.filter((id) => id !== optionId)
+        : [...existing, optionId];
+      const next = { ...prev, [currentQuestion.id]: { ...currentAnswer, selectedOptionIds } };
+      answersRef.current = next;
+      return next;
     });
   }
 
@@ -757,7 +539,15 @@ export default function ExamPage({ token, testId, setMessage }) {
     });
   }
 
-  function toggleMarkForReview() {
+  function saveAndNext() {
+    if (!currentQuestion) return;
+    markVisited(currentQuestion.id);
+    if (currentIndex < activeQuestions.length - 1) {
+      jumpToQuestion(currentIndex + 1);
+    }
+  }
+
+  function markForReviewAndNext() {
     if (!currentQuestion) return;
     setQuestionStates((prev) => {
       const next = {
@@ -765,27 +555,17 @@ export default function ExamPage({ token, testId, setMessage }) {
         [currentQuestion.id]: {
           ...(prev[currentQuestion.id] || {}),
           visited: true,
-          markedForReview: !prev[currentQuestion.id]?.markedForReview,
+          markedForReview: true,
         },
       };
       questionStatesRef.current = next;
       return next;
     });
-  }
 
-  // ── fullscreen ────────────────────────────────────────────────────────────
-
-  async function enterFullscreen() {
-    try {
-      if (document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen();
-      }
-    } catch {
-      // ignore
+    if (currentIndex < activeQuestions.length - 1) {
+      jumpToQuestion(currentIndex + 1);
     }
   }
-
-  // ── submit ────────────────────────────────────────────────────────────────
 
   function handleSubmitClick() {
     if (!navigator.onLine) {
@@ -797,7 +577,6 @@ export default function ExamPage({ token, testId, setMessage }) {
 
   async function submitNow(autoSubmitted = false) {
     if (!test || isSubmitting || submitted) return;
-
     if (!navigator.onLine && !autoSubmitted) {
       setShowOfflineAlert(true);
       return;
@@ -806,37 +585,23 @@ export default function ExamPage({ token, testId, setMessage }) {
     setIsSubmitting(true);
     setShowConfirm(false);
 
-    // Use refs for the latest state snapshot (avoids stale closure)
-    const currentAnswers = answersRef.current;
-    const currentStates = questionStatesRef.current;
-    const currentTimes = questionTimesRef.current;
-
-    // Final save to localStorage before submit
-    persistOfflineSnapshot({
-      answers: currentAnswers,
-      questionStates: currentStates,
-      questionTimes: currentTimes,
-      activeQuestionId: activeQuestionIdRef.current,
-      activeSection: activeSectionRef.current,
-      antiCheat: antiCheatRef.current,
-      endAt,
-    });
+    const snapshot = getSnapshot();
+    persistOfflineSnapshot(snapshot);
 
     try {
       const durationSeconds = Math.max(0, Math.floor((Date.now() - (startAt || Date.now())) / 1000));
       const response = await api.submitTest(token, test._id, {
-        answers: buildAnswersList(currentAnswers, currentStates),
+        answers: buildAnswerPayload(test, snapshot.answers, snapshot.questionStates),
         durationSeconds,
-        antiCheat,
         autoSubmitted,
-        questionTimes: currentTimes,
+        questionTimes: snapshot.questionTimes,
       });
 
       setSubmittedDurationSeconds(durationSeconds);
       setSubmitted(response);
-      clearLocalStorage();
+      clearOfflineSnapshot();
       localStorage.setItem(SUBMIT_EVENT_KEY, String(Date.now()));
-      setMessage(autoSubmitted ? 'Auto submitted due to timer or violations.' : 'Test submitted.');
+      setMessage(autoSubmitted ? 'Auto submitted due to timer.' : 'Test submitted.');
     } catch (error) {
       setMessage(error.message);
       if (!navigator.onLine) setShowOfflineAlert(true);
@@ -845,174 +610,52 @@ export default function ExamPage({ token, testId, setMessage }) {
     }
   }
 
-  // ── render helpers ────────────────────────────────────────────────────────
-
-  function renderAnswerInput() {
-    if (!currentQuestion) return null;
-    const qId = currentQuestion.id;
-    const a = answers[qId] || {};
-
-    if (currentQuestion.type === 'NAT') {
-      return (
-        <div className="my-2">
-          <label className="font-semibold grid gap-[0.4rem]">
-            Enter your answer:
-            <input
-              type="number"
-              className="max-w-[240px] text-[1.05rem] px-3 py-2"
-              value={a.numericAnswer ?? ''}
-              onChange={(e) => saveNAT(e.target.value)}
-              placeholder="Type numeric answer"
-              step="any"
-            />
-          </label>
-          {currentQuestion.numerical?.min !== null && (
-            <p className="text-[var(--muted)] m-0 mt-1 text-sm">
-              Range: [{currentQuestion.numerical.min}, {currentQuestion.numerical.max}]
-            </p>
-          )}
-        </div>
-      );
-    }
-
-    if (currentQuestion.type === 'MSQ') {
-      return (
-        <div className="grid gap-3">
-          <p className="m-0 text-[var(--muted)] text-sm">Select all correct options:</p>
-          {(currentQuestion.options || []).map((option) => (
-            <label key={option.id} className="flex gap-2 font-medium items-start">
-              <input
-                type="checkbox"
-                checked={(a.selectedOptionIds || []).includes(option.id)}
-                onChange={() => toggleMSQ(option.id)}
-              />
-              <span>
-                {option.id}. {option.text}
-                {option.image && <img src={option.image} alt="" className="max-w-[140px] block mt-1 rounded-lg border border-[var(--line)]" />}
-              </span>
-            </label>
-          ))}
-        </div>
-      );
-    }
-
-    // MCQ (default)
-    return (
-      <div className="grid gap-3">
-        {(currentQuestion.options || []).map((option) => (
-          <label key={option.id} className="flex gap-2 font-medium items-start">
-            <input
-              type="radio"
-              checked={a.selectedOptionId === option.id}
-              onChange={() => saveMCQ(option.id)}
-            />
-            <span>
-              {option.id}. {option.text}
-              {option.image && <img src={option.image} alt="" className="max-w-[140px] block mt-1 rounded-lg border border-[var(--line)]" />}
-            </span>
-          </label>
-        ))}
-      </div>
-    );
-  }
-
-  // ── loading / submitted ───────────────────────────────────────────────────
-
-  if (showStartDialog) {
-    return (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">
-        <div className="bg-white border border-[var(--line)] rounded-2xl p-8 w-[min(480px,92vw)] shadow-[0_24px_60px_rgba(0,0,0,0.25)] text-center">
-          <div className="text-5xl mb-4">📝</div>
-          <h2 className="mb-2">Ready to Start the Test?</h2>
-          <p className="text-[var(--muted)] m-0 mb-6">
-            The test will open in <strong>fullscreen mode</strong>. Do not switch tabs or
-            navigate away during the test — violations are tracked and may lead to
-            auto-submission.
-          </p>
-          <div className="flex gap-3 justify-center">
-            <button type="button" className="secondary" onClick={() => window.close()}>
-              Cancel
-            </button>
-            <button type="button" onClick={handleStartConfirm}>
-              OK, Start Test
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (!test) {
     return (
-      <main className="w-[min(1500px,96vw)] mx-auto grid gap-3">
-        <section className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)]"><h2>Loading test...</h2></section>
+      <main className="flex h-screen items-center justify-center bg-white text-[#1f2a37]">
+        <div className="border border-[#d4dae1] bg-white px-5 py-4 text-sm shadow-sm">
+          Loading test...
+        </div>
       </main>
     );
   }
 
   if (submitted) {
-    const durationMin = Math.floor(submittedDurationSeconds / 60);
-    const durationSec = submittedDurationSeconds % 60;
-    const percentage = submitted.totalMarks > 0
-      ? ((submitted.score / submitted.totalMarks) * 100).toFixed(1)
-      : 0;
+    const durationMinutes = Math.floor(submittedDurationSeconds / 60);
+    const durationSeconds = submittedDurationSeconds % 60;
+    const percentage = submitted.totalMarks > 0 ? ((submitted.score / submitted.totalMarks) * 100).toFixed(1) : '0.0';
 
     return (
-      <main className="w-[min(1500px,96vw)] mx-auto grid gap-3">
-        <section className="max-w-[640px] mx-auto mt-[6vh] bg-white border border-[var(--line)] rounded-[20px] p-8 shadow-[0_20px_60px_rgba(21,29,43,0.1)] text-center">
-          <div className="mb-6">
-            <div className="text-5xl mb-2">✅</div>
-            <h2>Test Submitted Successfully!</h2>
-            <p className="text-[var(--muted)] m-0">Your responses have been recorded. Here is your summary.</p>
-          </div>
+      <main className="flex min-h-screen items-center justify-center bg-[#f4f6f8] px-4">
+        <section className="w-[min(720px,96vw)] border border-[#d4dae1] bg-white p-6 shadow-[0_24px_60px_rgba(0,0,0,0.12)]">
+          <h2 className="mb-2 text-[22px] font-bold text-[#1f2a37]">Test Submitted Successfully</h2>
+          <p className="m-0 text-sm text-[#5b6877]">Your responses have been recorded.</p>
 
-          <div className="grid grid-cols-4 gap-3 mb-6">
-            <div className="bg-[var(--card-soft)] border border-[var(--line)] rounded-xl p-3 flex flex-col gap-1">
-              <span className="text-[1.4rem] font-bold text-[var(--accent)]">{submitted.score}</span>
-              <span className="text-xs text-[var(--muted)] font-semibold">Score</span>
+          <div className="mt-5 grid grid-cols-2 gap-3 text-center text-sm font-semibold sm:grid-cols-4">
+            <div className="submit-count-item answered rounded-[2px] p-3">
+              <strong className="block text-[22px]">{submitted.score}</strong>
+              <span>Score</span>
             </div>
-            <div className="bg-[var(--card-soft)] border border-[var(--line)] rounded-xl p-3 flex flex-col gap-1">
-              <span className="text-[1.4rem] font-bold text-[var(--accent)]">{submitted.totalMarks}</span>
-              <span className="text-xs text-[var(--muted)] font-semibold">Total Marks</span>
+            <div className="submit-count-item not-visited rounded-[2px] p-3">
+              <strong className="block text-[22px]">{submitted.totalMarks}</strong>
+              <span>Total Marks</span>
             </div>
-            <div className="bg-[var(--card-soft)] border border-[var(--line)] rounded-xl p-3 flex flex-col gap-1">
-              <span className="text-[1.4rem] font-bold text-[var(--accent)]">{percentage}%</span>
-              <span className="text-xs text-[var(--muted)] font-semibold">Percentage</span>
+            <div className="submit-count-item marked rounded-[2px] p-3">
+              <strong className="block text-[22px]">{percentage}%</strong>
+              <span>Percentage</span>
             </div>
-            <div className="bg-[var(--card-soft)] border border-[var(--line)] rounded-xl p-3 flex flex-col gap-1">
-              <span className="text-[1.4rem] font-bold text-[var(--accent)]">{durationMin}m {durationSec}s</span>
-              <span className="text-xs text-[var(--muted)] font-semibold">Time Taken</span>
+            <div className="submit-count-item not-answered rounded-[2px] p-3">
+              <strong className="block text-[22px]">{durationMinutes}m {durationSeconds}s</strong>
+              <span>Time Taken</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-2.5 mb-2">
-            <div className="submit-count-item answered rounded-xl p-2.5 text-center flex flex-col gap-1">
-              <strong>{counts.answered}</strong>
-              <span>Answered</span>
-            </div>
-            <div className="submit-count-item not-answered rounded-xl p-2.5 text-center flex flex-col gap-1">
-              <strong>{counts.notAnswered}</strong>
-              <span>Visited</span>
-            </div>
-            <div className="submit-count-item marked rounded-xl p-2.5 text-center flex flex-col gap-1">
-              <strong>{counts.markedForReview}</strong>
-              <span>Marked</span>
-            </div>
-            <div className="submit-count-item not-visited rounded-xl p-2.5 text-center flex flex-col gap-1">
-              <strong>{counts.notVisited}</strong>
-              <span>Not Visited</span>
-            </div>
-          </div>
-
-          <div className="flex gap-2" style={{ justifyContent: 'center', marginTop: '1.6rem', gap: '0.8rem' }}>
-            <button type="button" onClick={() => (window.location.hash = '#/dashboard')}>
-              📊 Open Dashboard
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <button type="button" className="secondary" onClick={() => (window.location.hash = '#/dashboard')}>
+              Open Dashboard
             </button>
             <button type="button" className="secondary" onClick={() => (window.location.hash = `#/report/score/${test?._id}`)}>
-              📈 View Report
-            </button>
-            <button type="button" className="secondary" onClick={() => window.close()}>
-              Close Tab
+              View Report
             </button>
           </div>
         </section>
@@ -1020,260 +663,358 @@ export default function ExamPage({ token, testId, setMessage }) {
     );
   }
 
-  const leftSec = endAt ? Math.max(0, Math.floor((endAt - Date.now()) / 1000)) : 0;
-  const timerClass = leftSec <= LOW_TIME_WARN_SECS ? 'pill danger' : 'pill';
-
   return (
-    <main className="w-[min(1500px,96vw)] mx-auto grid gap-3">
-      {/* Offline banner */}
-      {isOffline && (
-        <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-3.5 py-2.5 font-semibold text-sm">
-          ⚠️ You are offline. Answers are being saved locally and will sync when reconnected.
+    <main className="exam-mock-page flex h-screen flex-col overflow-hidden bg-white text-black" style={{ fontFamily: '"Public Sans", "Inter", sans-serif' }}>
+      <header className="w-full shrink-0">
+        <div className="flex h-8 items-center justify-between bg-[#336699] px-4 text-xs text-white">
+          <span className="font-medium">cdn4.digialm.com//OnlineAssessment/quiz.html?585@@M464@@0@@0@@0@@0</span>
+          <div className="flex items-center gap-4">
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">search</span>
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">more_vert</span>
+          </div>
         </div>
-      )}
 
-      {/* Low-time warning */}
-      {lowTimeWarning && leftSec > 0 && (
-        <div className="bg-orange-50 border border-orange-300 text-orange-900 rounded-xl px-3.5 py-2.5 font-semibold text-sm flex items-center">
-          ⏰ Less than 10 minutes remaining! Please review and submit.
-          <button type="button" className="secondary" style={{ marginLeft: '0.7rem', padding: '0.2rem 0.6rem' }} onClick={() => setLowTimeWarning(false)}>✕</button>
-        </div>
-      )}
-
-      {/* Topbar */}
-      <section className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)] flex justify-between gap-3 items-start">
-        <div>
-          <h2>{test.title}</h2>
-          <p className="text-[var(--muted)] m-0">
-            {test.category && <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{test.category}</span>}
-            {test.difficultyLevel && <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{test.difficultyLevel}</span>}
-            &nbsp;{test.totalMarks} marks · {test.questions?.length || 0} questions
-          </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {violationScore > 0 && <span className="pill danger">Violations: {violationScore}</span>}
-          <span className={timerClass}>⏱ {leftTime}</span>
-          <button type="button" className="secondary" onClick={() => setShowCalc((v) => !v)}>
-            🖩 Calc
-          </button>
-          <button type="button" className="secondary" onClick={() => setShowScratchpad((v) => !v)}>
-            ✏️ Notes
-          </button>
-          <button type="button" className="secondary" onClick={enterFullscreen}>
-            ⛶ Fullscreen
-          </button>
-        </div>
-      </section>
-
-      {/* Section tabs */}
-      {sections.length > 0 && (
-        <div className="flex gap-[0.4rem] flex-wrap py-[0.2rem]">
-          <button
-            type="button"
-            className={`section-tab bg-[var(--card)] text-[var(--ink)] border border-[var(--line)] rounded-lg py-[0.38rem] px-[0.8rem] font-semibold text-sm cursor-pointer${!activeSection ? ' active' : ''}`}
-            onClick={() => { setActiveSection(null); setCurrentIndex(0); }}
-          >
-            All
-          </button>
-          {sections.map((sec) => (
-            <button
-              key={sec.key}
-              type="button"
-              className={`section-tab bg-[var(--card)] text-[var(--ink)] border border-[var(--line)] rounded-lg py-[0.38rem] px-[0.8rem] font-semibold text-sm cursor-pointer${activeSection === sec.key ? ' active' : ''}`}
-              onClick={() => { setActiveSection(sec.key); setCurrentIndex(0); }}
-            >
-              {sec.title}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Main grid */}
-      <section className="grid grid-cols-[1fr_270px] gap-3">
-        <article className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)] min-h-[65vh]">
-          {/* Question header */}
-          <div className="flex justify-between items-start flex-wrap gap-2 mb-3">
-            <div className="flex flex-wrap gap-1.5 items-center">
-              <span className="pill">Q {currentIndex + 1} / {filteredQuestions.length}</span>
-              {currentQuestion?.subject && <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{currentQuestion.subject}</span>}
-              {currentQuestion?.topic && <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{currentQuestion.topic}</span>}
-              {currentQuestion?.difficulty && <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1">{currentQuestion.difficulty}</span>}
-              {currentQuestion?.type && <span className="inline-flex items-center rounded-full border border-[var(--line)] px-1.5 py-0.5 text-xs bg-[var(--card-soft)] mr-1 type-pill">{currentQuestion.type}</span>}
+        <div className="flex items-center justify-between border-b border-gray-300 bg-white px-4 py-1 shadow-sm">
+          <div className="flex min-w-0 flex-1 items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center bg-white">
+              <div className="flex h-8 w-8 items-center justify-center border border-gray-200 bg-[#eef2f6] text-[8px] font-bold tracking-[0.2em] text-[#4b2c85]">
+                GATE
+              </div>
             </div>
-            <div className="flex gap-[0.35rem] items-center">
-              <span className="pill">+{currentQuestion?.marks?.total ?? 1}</span>
-              {(currentQuestion?.marks?.negative ?? 0) > 0 && (
-                <span className="pill danger">−{currentQuestion.marks.negative}</span>
+            <div className="min-w-0 text-center">
+              <h1 className="truncate text-sm font-bold uppercase tracking-tight text-[#4b2c85]">
+                GRADUATE APTITUDE TEST IN ENGINEERING (GATE 2026)
+              </h1>
+              <p className="truncate text-[10px] font-bold uppercase text-[#008cba]">
+                Organizing Institute : INDIAN INSTITUTE OF TECHNOLOGY GUWAHATI
+              </p>
+            </div>
+            <div className="ml-auto flex h-10 w-10 items-center justify-center">
+              <div className="flex h-8 w-8 items-center justify-center border border-gray-200 bg-[#eef2f6] text-[9px] font-bold text-[#336699]">
+                IITG
+              </div>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-4">
+            <button type="button" className="flex items-center gap-1 rounded-[2px] bg-[#337ab7] px-2 py-1 text-[11px] font-semibold text-white">
+              <span className="material-symbols-outlined text-xs" aria-hidden="true">info</span>
+              Instructions
+            </button>
+            <button type="button" className="flex items-center gap-1 rounded-[2px] bg-[#5cb85c] px-2 py-1 text-[11px] font-semibold text-white">
+              <span className="material-symbols-outlined text-xs" aria-hidden="true">list_alt</span>
+              Question Paper
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 bg-[#336699] px-4 py-1 text-[11px] font-bold text-white">
+          <div className="flex items-center gap-2 bg-[#008cba] px-3 py-1">
+            <span>{currentSectionTitle}</span>
+            <span className="material-symbols-outlined text-xs" aria-hidden="true">info</span>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <section className="relative flex min-w-0 flex-1 flex-col border-r border-gray-300 bg-white">
+          <div className="flex items-center justify-between border-b border-gray-300 bg-gray-100 p-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="text-[11px] font-bold text-gray-700">Sections</span>
+              <div className="flex min-w-0 gap-1 overflow-x-auto pb-0.5">
+                {sections.map((section, index) => {
+                  const title = getSectionTitle(section);
+                  const isActive = activeSection === section.key || (!activeSection && index === 0);
+
+                  return (
+                    <button
+                      key={section.key || title || index}
+                      type="button"
+                      className={`flex shrink-0 items-center gap-1 rounded-[2px] px-3 py-1 text-[11px] font-bold ${isActive ? 'bg-[#008cba] text-white' : 'border border-gray-300 bg-white text-[#337ab7]'}`}
+                      onClick={() => {
+                        setActiveSection(section.key || null);
+                        setCurrentIndex(0);
+                      }}
+                    >
+                      {truncateText(title, 18)}
+                      <span className="material-symbols-outlined text-[10px]" aria-hidden="true">info</span>
+                    </button>
+                  );
+                })}
+                {!sections.length && (
+                  <button type="button" className="flex items-center gap-1 rounded-[2px] bg-[#008cba] px-3 py-1 text-[11px] font-bold text-white">
+                    General Aptitude
+                    <span className="material-symbols-outlined text-[10px]" aria-hidden="true">info</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="text-[13px] font-bold text-black">
+              Time Left : <span className={lowTimeWarning ? 'text-[#d9534f]' : 'text-black'}>{leftTime}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-b border-gray-300 bg-white px-4 py-1 text-[11px]">
+            <span className="font-bold">Question Type: {currentQuestion?.type || 'MCQ'}</span>
+            <span className="text-gray-600">
+              Marks for correct answer: <span className="font-bold text-green-600">{questionMarks.correct}</span> | Negative Marks: <span className="font-bold text-red-600">{questionMarks.negative}</span>
+            </span>
+          </div>
+
+          {isOffline && (
+            <div className="border-b border-[#f3c9a0] bg-[#fff6eb] px-4 py-1 text-[11px] font-semibold text-[#8a4f0e]">
+              You are offline. Answers will be saved locally.
+            </div>
+          )}
+
+          <div className="relative flex-1 overflow-y-auto p-6">
+            <div className="watermark-container" aria-hidden="true">
+              {Array.from({ length: 16 }).map((_, index) => (
+                <div key={index} className="watermark-text">{WATERMARK_VALUE}</div>
+              ))}
+            </div>
+
+            <div className="relative z-10">
+              <h2 className="mb-4 text-sm font-bold">Question No. {currentIndex + 1}</h2>
+
+              <div className="mb-8 text-[14px] leading-relaxed">
+                {getQuestionText(currentQuestion)}
+                {getQuestionImage(currentQuestion) && (
+                  <img src={getQuestionImage(currentQuestion)} alt="Question" className="mt-4 max-w-full border border-gray-200" />
+                )}
+              </div>
+
+              {currentQuestion?.type === 'NAT' ? (
+                <div className="space-y-3 text-[13px]">
+                  <label className="grid gap-2 font-semibold">
+                    Enter your answer:
+                    <input
+                      type="number"
+                      className="max-w-[240px] rounded-[2px] border border-gray-300 px-3 py-2 text-[1.05rem]"
+                      value={answers[currentQuestion.id]?.numericAnswer ?? ''}
+                      onChange={(event) => saveNAT(event.target.value)}
+                      placeholder="Type numeric answer"
+                      step="any"
+                    />
+                  </label>
+                </div>
+              ) : currentQuestion?.type === 'MSQ' ? (
+                <div className="space-y-4 text-[13px]">
+                  <p className="m-0 text-sm text-gray-600">Select all correct options:</p>
+                  {(currentQuestion?.options || []).map((option) => {
+                    const selected = (answers[currentQuestion.id]?.selectedOptionIds || []).includes(option.id);
+
+                    return (
+                      <label key={option.id} className="flex cursor-pointer items-start gap-3 group">
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleMSQ(option.id)}
+                          className="mt-0.5 h-4 w-4 text-blue-600 focus:ring-0"
+                        />
+                        <span>
+                          {option.id}. {option.text}
+                          {option.image && (
+                            <img src={option.image} alt="" className="mt-1 block max-w-[140px] border border-gray-200" />
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-6 text-[13px]">
+                  {(currentQuestion?.options || []).map((option) => (
+                    <label key={option.id} className="flex cursor-pointer items-center gap-3 group">
+                      <input
+                        type="radio"
+                        name={`question-${currentQuestion?.id}`}
+                        className="h-4 w-4 text-blue-600 focus:ring-0"
+                        checked={answers[currentQuestion.id]?.selectedOptionId === option.id}
+                        onChange={() => saveMCQ(option.id)}
+                      />
+                      <span>
+                        {option.id}. {option.text}
+                        {option.image && (
+                          <img src={option.image} alt="" className="mt-1 block max-w-[140px] border border-gray-200" />
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
               )}
             </div>
           </div>
 
-          {/* Question text */}
-          <div className="mb-4">
-            <p className="text-[1.05rem] leading-[1.65] m-0 mb-2 whitespace-pre-wrap">{currentQuestion?.question?.text}</p>
-            {currentQuestion?.question?.image && (
-              <img src={currentQuestion.question.image} alt="Question" className="max-w-full border border-[var(--line)] rounded-xl mt-2" />
-            )}
-          </div>
-
-          {/* Answer input */}
-          {renderAnswerInput()}
-
-          {/* Action row */}
-          <div className="flex justify-between items-center flex-wrap gap-2.5 mt-4 pt-3 border-t border-[var(--line)]">
+          <div className="flex items-center justify-between border-t border-gray-300 bg-white px-3 py-3 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
             <div className="flex gap-2">
-              <button type="button" className="secondary" onClick={goPrev} disabled={currentIndex === 0}>
-                ← Previous
+              <button type="button" className="rounded-[2px] border border-gray-300 bg-white px-4 py-1.5 text-[11px] font-medium text-black hover:bg-gray-50" onClick={markForReviewAndNext}>
+                Mark for Review &amp; Next
               </button>
-              <button type="button" className="secondary" onClick={goNext} disabled={currentIndex === filteredQuestions.length - 1}>
-                Next →
+              <button type="button" className="rounded-[2px] border border-gray-300 bg-white px-4 py-1.5 text-[11px] font-medium text-black hover:bg-gray-50" onClick={clearResponse}>
+                Clear Response
               </button>
             </div>
+
             <div className="flex gap-2">
-              <button
-                type="button"
-                className={`secondary${questionStates[currentQuestion?.id]?.markedForReview ? ' marked-active' : ''}`}
-                onClick={toggleMarkForReview}
-              >
-                {questionStates[currentQuestion?.id]?.markedForReview ? '🏴 Marked' : '🚩 Mark for Review'}
+              <button type="button" className="rounded-[2px] bg-[#337ab7] px-8 py-1.5 text-[11px] font-bold text-white" onClick={saveAndNext}>
+                Save &amp; Next
               </button>
-              <button type="button" className="secondary" onClick={clearResponse}>
-                ✕ Clear
-              </button>
-              <button
-                type="button"
-                className="bg-red-600 border-red-600"
-                onClick={handleSubmitClick}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Submitting…' : 'Submit Test'}
+              <button type="button" className="rounded-[2px] bg-[#5bc0de] px-8 py-1.5 text-[11px] font-bold text-white" onClick={handleSubmitClick} disabled={isSubmitting}>
+                {isSubmitting ? 'Submitting...' : 'Submit'}
               </button>
             </div>
           </div>
-        </article>
+        </section>
 
-        {/* Palette */}
-        <aside className="bg-white border border-[var(--line)] rounded-2xl p-4 shadow-[0_16px_40px_rgba(21,29,43,0.08)] sticky top-2 h-fit">
-          <h4>Question Palette</h4>
-
-          {sections.length > 0 && (
+        <aside className="flex w-[280px] flex-col bg-white">
+          <div className="flex items-start gap-3 border-b border-gray-200 bg-gray-50 p-4">
+            <div className="flex h-20 w-16 items-center justify-center overflow-hidden border border-gray-300 bg-gray-200 shadow-inner">
+              {candidate?.image || candidate?.avatar ? (
+                <img alt="Profile" className="h-full w-full object-cover grayscale" src={candidate.image || candidate.avatar} />
+              ) : (
+                <div className="flex h-full w-full items-end justify-center bg-gradient-to-b from-[#d9e0e8] to-[#b7c1cb] pb-2 text-[11px] font-semibold text-[#3d4a58]">
+                  {candidate?.name?.slice(0, 2).toUpperCase() || 'JS'}
+                </div>
+              )}
+            </div>
             <div>
-              {sections.map((sec) => {
-                const secQs = (test.questions || []).filter((q) => q.section === sec.key);
+              <h3 className="text-sm font-bold text-gray-800">{candidate?.name || 'John Smith'}</h3>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-2 gap-y-3 border-b border-gray-200 bg-white p-4 text-[10px] text-gray-700">
+            <div className="flex items-center gap-2">
+              <span className="answered-shape flex h-6 w-6 items-center justify-center font-bold text-white">{counts.answered}</span>
+              <span>Answered</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="notanswered-shape flex h-6 w-6 items-center justify-center font-bold text-white shadow-sm">{counts.notAnswered}</span>
+              <span>Not Answered</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="notvisited-shape flex h-6 w-6 items-center justify-center border border-gray-400 bg-white font-bold text-black">{counts.notVisited}</span>
+              <span>Not Visited</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="marked-shape flex h-6 w-6 items-center justify-center rounded-full bg-[#9966cc] font-bold text-white">{counts.markedForReview}</span>
+              <span>Marked for Review</span>
+            </div>
+            <div className="col-span-2 flex items-center gap-2">
+              <div className="relative">
+                <span className="marked-shape flex h-6 w-6 items-center justify-center rounded-full bg-[#9966cc] text-[8px] font-bold text-white">{answeredAndMarkedCount}</span>
+                <span className="absolute -bottom-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full border border-white bg-[#5cb85c]">
+                  <span className="material-symbols-outlined text-[8px] text-white" aria-hidden="true">check</span>
+                </span>
+              </div>
+              <span>Answered &amp; Marked for Review (will also be evaluated)</span>
+            </div>
+          </div>
+
+          <div className="bg-[#337ab7] px-3 py-1.5 text-[11px] font-bold text-white">{getSectionTitle(sections.find((section) => section.key === activeSection)) || getSectionTitle(sections[0]) || 'General Aptitude'}</div>
+
+          <div className="flex-1 overflow-y-auto p-4">
+            <p className="mb-3 text-[11px] font-bold">Choose a Question</p>
+            <div className="grid grid-cols-4 gap-2">
+              {activeQuestions.map((question, index) => {
+                const status = paletteStatus(question);
+                const isCurrent = index === currentIndex;
+
+                const className = [
+                  'w-10 h-10 flex items-center justify-center text-[12px] font-bold border',
+                  status === 'answered' ? 'answered-shape text-white border-transparent' : '',
+                  status === 'not-answered' ? 'notanswered-shape text-white border-transparent' : '',
+                  status === 'marked' ? 'marked-shape rounded-full bg-[#9966cc] text-white border-transparent' : '',
+                  status === 'answered-marked' ? 'answered-marked-shape rounded-full text-white border-transparent' : '',
+                  status === 'not-visited' ? 'notvisited-shape bg-white border-gray-300 text-black' : '',
+                  isCurrent ? 'ring-2 ring-[#337ab7] ring-offset-1' : '',
+                ].join(' ');
+
                 return (
-                  <div key={sec.key} className="mb-3">
-                    <p className="text-xs font-bold text-[var(--muted)] m-0 mb-1 uppercase tracking-[0.06em]">{sec.title}</p>
-                    <div className="grid grid-cols-6 gap-1.5">
-                      {secQs.map((q) => {
-                        const globalIdx = (test.questions || []).findIndex((tq) => tq.id === q.id);
-                        const inFiltered = filteredQuestions.findIndex((fq) => fq.id === q.id);
-                        return (
-                          <button
-                            key={q.id}
-                            type="button"
-                            className={`palette-btn rounded-lg border border-[var(--line)] bg-white text-[var(--ink)] py-1.5 px-0 ${paletteStatus(q)}${q.id === currentQuestion?.id ? ' current' : ''}`}
-                            onClick={() => {
-                              if (activeSection && activeSection !== q.section) {
-                                setActiveSection(q.section);
-                              }
-                              const idx = inFiltered >= 0 ? inFiltered : globalIdx;
-                              jumpToQuestion(idx >= 0 ? idx : 0);
-                            }}
-                          >
-                            {globalIdx + 1}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  <button
+                    key={question.id}
+                    type="button"
+                    className={className}
+                    onClick={() => jumpToQuestion(index)}
+                  >
+                    {index + 1}
+                  </button>
                 );
               })}
             </div>
-          )}
-
-          {sections.length === 0 && (
-            <div className="grid grid-cols-6 gap-1.5">
-              {filteredQuestions.map((q, index) => (
-                <button
-                  key={q.id}
-                  type="button"
-                  className={`palette-btn rounded-lg border border-[var(--line)] bg-white text-[var(--ink)] py-1.5 px-0 ${paletteStatus(q)}${q.id === currentQuestion?.id ? ' current' : ''}`}
-                  onClick={() => jumpToQuestion(index)}
-                >
-                  {index + 1}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-3 grid gap-1.5">
-            <span><i className="dot answered w-2 h-2 rounded-full inline-block mr-1.5" /> Answered</span>
-            <span><i className="dot answered-marked w-2 h-2 rounded-full inline-block mr-1.5" /> Ans + Review</span>
-            <span><i className="dot marked w-2 h-2 rounded-full inline-block mr-1.5" /> Marked</span>
-            <span><i className="dot visited w-2 h-2 rounded-full inline-block mr-1.5" /> Visited</span>
-            <span><i className="dot not-visited w-2 h-2 rounded-full inline-block mr-1.5" /> Not Visited</span>
-          </div>
-
-          <div className="mt-2.5 grid grid-cols-2 gap-1 text-xs text-[var(--muted)]">
-            <span>{counts.answered} answered</span>
-            <span>{counts.notAnswered} visited</span>
-            <span>{counts.markedForReview} review</span>
-            <span>{counts.notVisited} not seen</span>
           </div>
         </aside>
-      </section>
+      </div>
 
-      {/* Floating calculator */}
-      {showCalc && <Calculator onClose={() => setShowCalc(false)} />}
+      <footer className="flex h-7 w-full items-center justify-center bg-[#5a6a7a] text-[10px] text-white">
+        <span>Version : 17.07.00</span>
+      </footer>
 
-      {/* Floating scratchpad */}
-      {showScratchpad && (
-        <div className="fixed bottom-6 left-6 w-[300px] bg-white border border-[var(--line)] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.18)] z-[8888] overflow-hidden flex flex-col">
-          <div className="bg-[#1e293b] text-white flex justify-between items-center px-[0.7rem] py-[0.45rem] font-bold text-[0.88rem]">
-            <span>Rough Work</span>
-            <button type="button" className="bg-transparent border-none text-white p-0 cursor-pointer text-base leading-none" onClick={() => setShowScratchpad(false)}>✕</button>
+      <div className="flex h-10 w-full items-center justify-between bg-[#2a2a2a] px-3">
+        <div className="flex items-center gap-4">
+          <span className="material-symbols-outlined text-white opacity-80" aria-hidden="true">grid_view</span>
+          <span className="material-symbols-outlined text-white opacity-80" aria-hidden="true">search</span>
+          <div className="ml-2 flex gap-4">
+            <span className="material-symbols-outlined text-[#ffd700]" aria-hidden="true">folder</span>
+            <span className="material-symbols-outlined text-[#4285f4]" aria-hidden="true">chrome_reader_mode</span>
+            <span className="material-symbols-outlined text-[#217346]" aria-hidden="true">description</span>
           </div>
-          <textarea
-            className="w-full h-[200px] resize-none border-none rounded-none p-[0.7rem] text-[0.9rem] bg-[var(--card)] text-[var(--ink)]"
-            value={scratchpad}
-            onChange={(e) => setScratchpad(e.target.value)}
-            placeholder="Use this space for rough work. Not saved."
-          />
+        </div>
+
+        <div className="flex items-center gap-3 text-[11px] font-medium text-white">
+          <span className="material-symbols-outlined text-xs" aria-hidden="true">keyboard_arrow_up</span>
+          <div className="flex items-center gap-1">
+            <span className="material-symbols-outlined text-xs" aria-hidden="true">wifi</span>
+            <span className="material-symbols-outlined text-xs" aria-hidden="true">volume_up</span>
+            <span className="material-symbols-outlined text-xs text-red-500" aria-hidden="true">error</span>
+          </div>
+          <div className="leading-none text-right">
+            <div>8:23 PM</div>
+            <div className="text-[9px]">4/3/2026</div>
+          </div>
+          <div className="ml-1 flex items-center border-l border-gray-600 pl-2">
+            <span className="material-symbols-outlined text-xs" aria-hidden="true">chat_bubble</span>
+            <span className="ml-0.5 rounded-full bg-gray-500 px-1 text-[8px]">2</span>
+          </div>
+        </div>
+      </div>
+
+      {lowTimeWarning && !showConfirm && !showOfflineAlert && (
+        <div className="fixed left-1/2 top-4 z-[9998] -translate-x-1/2 border border-[#f3c9a0] bg-[#fff6eb] px-3 py-2 text-[11px] font-semibold text-[#8a4f0e] shadow-md">
+          Less than 10 minutes remaining.
+          <button type="button" className="ml-3 rounded-[2px] border border-[#d6b37d] bg-white px-2 py-0.5 text-[10px] font-bold text-[#8a4f0e]" onClick={() => setLowTimeWarning(false)}>
+            Close
+          </button>
         </div>
       )}
 
-      {/* Submit confirmation */}
       {showConfirm && (
-        <SubmitDialog
+        <QuestionStatusDialog
+          title="Submit Test?"
+          body="Once submitted, you cannot change your answers."
           counts={counts}
+          confirmLabel="Submit"
+          cancelLabel="Cancel"
           onConfirm={() => submitNow(false)}
           onCancel={() => setShowConfirm(false)}
         />
       )}
 
-      {/* Offline submit alert */}
       {showOfflineAlert && (
-        <div className="fixed inset-0 bg-black/45 flex items-center justify-center z-[9999]">
-          <div className="bg-white border border-[var(--line)] rounded-2xl p-5 w-[min(440px,92vw)] shadow-[0_24px_60px_rgba(0,0,0,0.2)]">
-            <h3>⚠️ No Internet Connection</h3>
-            <p>Your answers are saved locally. Please connect to the internet and try submitting again.</p>
-            <div className="flex gap-2" style={{ justifyContent: 'flex-end' }}>
-              <button type="button" className="secondary" onClick={() => setShowOfflineAlert(false)}>
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowOfflineAlert(false);
-                  if (navigator.onLine) submitNow(false);
-                  else setMessage('Still offline. Please reconnect.');
-                }}
-              >
-                Retry Submit
-              </button>
-            </div>
-          </div>
-        </div>
+        <QuestionStatusDialog
+          title="No Internet Connection"
+          body="Your answers are saved locally. Please connect to the internet and try submitting again."
+          counts={counts}
+          confirmLabel="Retry Submit"
+          cancelLabel="Close"
+          onConfirm={() => {
+            setShowOfflineAlert(false);
+            if (navigator.onLine) submitNow(false);
+            else setMessage('Still offline. Please reconnect.');
+          }}
+          onCancel={() => setShowOfflineAlert(false)}
+        />
       )}
     </main>
   );

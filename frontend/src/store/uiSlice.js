@@ -1,12 +1,11 @@
 import { createSlice } from '@reduxjs/toolkit';
 
-let toastIdCounter = 0;
-
 const uiSlice = createSlice({
   name: 'ui',
   initialState: {
     pendingRequests: 0,
     toasts: [],
+    _nextToastId: 1,
   },
   reducers: {
     requestStarted(state) {
@@ -17,7 +16,7 @@ const uiSlice = createSlice({
     },
     addToast(state, action) {
       const { text, type = 'info', duration = 4000 } = action.payload;
-      state.toasts.push({ id: ++toastIdCounter, text, type, duration });
+      state.toasts.push({ id: state._nextToastId++, text, type, duration });
     },
     removeToast(state, action) {
       state.toasts = state.toasts.filter((t) => t.id !== action.payload);

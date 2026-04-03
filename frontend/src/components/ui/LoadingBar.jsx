@@ -5,17 +5,22 @@ export default function LoadingBar() {
   const pendingRequests = useSelector((state) => state.ui.pendingRequests);
   const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState('idle'); // 'idle' | 'loading' | 'completing'
+  const phaseRef = useRef('idle');
   const tickRef = useRef(null);
   const doneRef = useRef(null);
+
+  // Keep ref in sync for safe use inside effects without adding `phase` to deps
+  phaseRef.current = phase;
 
   useEffect(() => {
     if (pendingRequests > 0) {
       // Cancel any pending "complete" animation
       clearTimeout(doneRef.current);
 
-      if (phase === 'idle') {
+      if (phaseRef.current === 'idle') {
         setProgress(8);
         setPhase('loading');
+        phaseRef.current = 'loading';
       }
 
       // Crawl toward 88%
@@ -29,13 +34,15 @@ export default function LoadingBar() {
           return prev + (88 - prev) * 0.07;
         });
       }, 250);
-    } else if (phase === 'loading') {
+    } else if (phaseRef.current === 'loading') {
       clearInterval(tickRef.current);
       setPhase('completing');
+      phaseRef.current = 'completing';
       setProgress(100);
 
       doneRef.current = setTimeout(() => {
         setPhase('idle');
+        phaseRef.current = 'idle';
         setProgress(0);
       }, 450);
     }
@@ -44,7 +51,6 @@ export default function LoadingBar() {
       clearInterval(tickRef.current);
       clearTimeout(doneRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingRequests]);
 
   const isVisible = phase !== 'idle';
